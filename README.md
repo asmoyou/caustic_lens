@@ -1,69 +1,162 @@
-# React + TypeScript + Vite
+# 🔍 Caustic Lens Designer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+一个基于 React + Three.js 的交互式焦散透镜设计工具，能够根据目标图像生成相应的透镜几何体，实现光影艺术创作。
 
-Currently, two official plugins are available:
+## ✨ 功能特性
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 🎨 核心功能
+- **图像上传与预处理** - 支持多种图像格式，自动优化处理
+- **实时3D预览** - 基于 Three.js 的高质量3D渲染
+- **焦散效果模拟** - 真实的光线追踪和折射计算
+- **透镜参数调节** - 直观的参数面板，实时调整透镜属性
+- **多材料支持** - 亚克力、玻璃、聚碳酸酯等多种材料选择
 
-## Expanding the ESLint configuration
+### 🔧 技术特性
+- **逆向光线追踪算法** - 从目标图案反推透镜表面形状
+- **几何优化引擎** - 自动优化透镜表面以获得最佳效果
+- **实时渲染** - 流畅的3D交互和参数调整
+- **专业报告生成** - 详细的设计报告和技术参数
+- **多格式导出** - 支持 STL、OBJ 等3D打印格式
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🚀 快速开始
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### 环境要求
+- Node.js >= 16.0.0
+- npm >= 7.0.0
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 安装依赖
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 启动开发服务器
+```bash
+npm run dev
 ```
+
+### 构建生产版本
+```bash
+npm run build
+```
+
+## 🎯 使用指南
+
+### 1. 上传目标图像
+- 点击上传区域选择图像文件
+- 支持 JPG、PNG、GIF 等常见格式
+- 建议使用高对比度的黑白图像以获得最佳效果
+
+### 2. 调整透镜参数
+- **尺寸设置**: 调整透镜的宽度和高度
+- **光学参数**: 设置焦距、折射率、目标距离
+- **材料选择**: 选择合适的透镜材料
+- **优化设置**: 配置算法参数以获得最佳结果
+
+### 3. 预览和优化
+- 实时查看3D透镜模型
+- 观察焦散投影效果
+- 调整参数直到满意
+
+### 4. 导出结果
+- 生成详细的设计报告
+- 导出3D模型文件用于制造
+- 保存项目配置以便后续修改
+
+## 🏗️ 技术架构
+
+### 前端技术栈
+- **React 18** - 现代化的用户界面框架
+- **TypeScript** - 类型安全的开发体验
+- **Three.js** - 强大的3D图形渲染引擎
+- **React Three Fiber** - React 的 Three.js 集成
+- **Ant Design** - 企业级UI组件库
+- **Zustand** - 轻量级状态管理
+- **Vite** - 快速的构建工具
+
+### 核心算法
+- **逆向光线追踪** - 从目标图案计算透镜形状
+- **几何优化** - 梯度下降算法优化表面形状
+- **光学模拟** - 真实的折射和焦散计算
+- **网格生成** - 高质量的3D几何体生成
+
+## 📁 项目结构
+
+```
+src/
+├── algorithms/          # 核心算法
+│   ├── causticEngine/   # 焦散计算引擎
+│   ├── geometryGeneration/ # 几何生成
+│   └── imageProcessing/ # 图像处理
+├── components/          # React 组件
+│   ├── controls/        # 参数控制面板
+│   ├── export/          # 导出功能
+│   ├── report/          # 报告生成
+│   ├── upload/          # 文件上传
+│   └── viewer/          # 3D 查看器
+├── stores/              # 状态管理
+├── types/               # TypeScript 类型定义
+└── utils/               # 工具函数
+```
+
+## 🎨 应用场景
+
+### 艺术创作
+- 光影装置艺术
+- 建筑装饰照明
+- 展览展示设计
+- 创意灯具设计
+
+### 工业应用
+- 光学器件设计
+- 照明系统优化
+- 激光加工应用
+- 科研教学演示
+
+## 🔬 算法原理
+
+本项目采用逆向光线追踪算法，主要步骤包括：
+
+1. **图像预处理** - 边缘检测、噪声过滤、亮度归一化
+2. **光线追踪** - 模拟光线通过透镜的折射过程
+3. **表面优化** - 使用梯度下降算法优化透镜表面形状
+4. **几何生成** - 生成高质量的3D网格模型
+5. **效果验证** - 实时计算和显示焦散效果
+
+## 🤝 贡献指南
+
+欢迎提交 Issue 和 Pull Request！
+
+### 开发流程
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+### 代码规范
+- 使用 TypeScript 进行类型检查
+- 遵循 ESLint 配置的代码规范
+- 添加适当的注释和文档
+- 确保所有测试通过
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+
+## 🙏 致谢
+
+- [Three.js](https://threejs.org/) - 强大的3D图形库
+- [React Three Fiber](https://github.com/pmndrs/react-three-fiber) - React 的 Three.js 集成
+- [Ant Design](https://ant.design/) - 优秀的UI组件库
+- 所有为开源社区做出贡献的开发者们
+
+## 📞 联系方式
+
+如有问题或建议，请通过以下方式联系：
+
+- 提交 [GitHub Issue](https://github.com/asmoyou/caustic_lens/issues)
+- 发送邮件至项目维护者
+
+---
+
+⭐ 如果这个项目对您有帮助，请给我们一个 Star！
