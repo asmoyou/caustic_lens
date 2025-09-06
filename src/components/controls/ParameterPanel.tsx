@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Card, Form, Slider, InputNumber, Select, Switch, Divider, Typography, Space, Tooltip } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { useProjectStore } from '../../stores/projectStore';
@@ -11,9 +11,13 @@ export const ParameterPanel: React.FC = () => {
   const { parameters, setParameters } = useProjectStore();
   const [form] = Form.useForm();
 
+  // 监听parameters变化，同步更新Form字段值
+  useEffect(() => {
+    form.setFieldsValue(parameters);
+  }, [form, parameters]);
+
   const handleParameterChange = (field: keyof CausticParameters, value: any) => {
-    const newParameters = { ...parameters, [field]: value };
-    setParameters(newParameters);
+    setParameters({ [field]: value });
     form.setFieldsValue({ [field]: value });
   };
 
@@ -57,7 +61,6 @@ export const ParameterPanel: React.FC = () => {
         form={form}
         layout="vertical"
         size="small"
-        initialValues={parameters}
       >
         {/* 透镜基本参数 */}
         <Title level={5} style={{ margin: '0 0 12px 0', fontSize: '14px' }}>
@@ -65,6 +68,7 @@ export const ParameterPanel: React.FC = () => {
         </Title>
         
         <Form.Item 
+          name="lensWidth"
           label={
             <Space>
               <Text>宽度 (mm)</Text>
@@ -94,6 +98,7 @@ export const ParameterPanel: React.FC = () => {
         </Form.Item>
 
         <Form.Item 
+          name="lensHeight"
           label={
             <Space>
               <Text>高度 (mm)</Text>
@@ -123,6 +128,7 @@ export const ParameterPanel: React.FC = () => {
         </Form.Item>
 
         <Form.Item 
+          name="thickness"
           label={
             <Space>
               <Text>厚度 (mm)</Text>
@@ -161,6 +167,7 @@ export const ParameterPanel: React.FC = () => {
         </Title>
 
         <Form.Item 
+          name="focalLength"
           label={
             <Space>
               <Text>焦距 (mm)</Text>
@@ -190,6 +197,7 @@ export const ParameterPanel: React.FC = () => {
         </Form.Item>
 
         <Form.Item 
+          name="targetDistance"
           label={
             <Space>
               <Text>目标距离 (mm)</Text>
@@ -219,6 +227,7 @@ export const ParameterPanel: React.FC = () => {
         </Form.Item>
 
         <Form.Item 
+          name="material"
           label={
             <Space>
               <Text>材料</Text>
@@ -231,7 +240,9 @@ export const ParameterPanel: React.FC = () => {
           <Select
             value={parameters.material}
             onChange={(value) => {
-              handleParameterChange('material', value);
+              // 直接更新store和form
+              setParameters({ material: value });
+              form.setFieldsValue({ material: value });
               // 根据材料自动设置折射率
               const refractiveIndexMap: Record<string, number> = {
                 'acrylic': 1.49,
@@ -240,7 +251,8 @@ export const ParameterPanel: React.FC = () => {
                 'pmma': 1.49
               };
               if (refractiveIndexMap[value]) {
-                handleParameterChange('refractiveIndex', refractiveIndexMap[value]);
+                setParameters({ refractiveIndex: refractiveIndexMap[value] });
+                form.setFieldsValue({ refractiveIndex: refractiveIndexMap[value] });
               }
             }}
             size="small"
@@ -253,6 +265,7 @@ export const ParameterPanel: React.FC = () => {
         </Form.Item>
 
         <Form.Item 
+          name="refractiveIndex"
           label={
             <Space>
               <Text>折射率</Text>
@@ -281,6 +294,7 @@ export const ParameterPanel: React.FC = () => {
         </Title>
 
         <Form.Item 
+          name="resolution"
           label={
             <Space>
               <Text>网格分辨率</Text>

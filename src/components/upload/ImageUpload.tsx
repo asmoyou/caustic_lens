@@ -10,7 +10,7 @@ import { ImageData } from '../../types';
 const { Text } = Typography;
 
 export const ImageUpload: React.FC = () => {
-  const { currentImage, setImage, setGeometry, setProcessing, setError, parameters, isProcessing } = useProjectStore();
+  const { currentImage, setImage, setGeometry, setTargetShape, setProcessing, setError, parameters, isProcessing } = useProjectStore();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [progress, setProgress] = useState(0);
 
@@ -55,6 +55,9 @@ export const ImageUpload: React.FC = () => {
       const processingResult = await processor.processImage(currentImage);
       console.log('图像处理完成:', processingResult);
       setProgress(50);
+
+      // 保存目标形状数据
+      setTargetShape(processingResult.targetShape);
 
       // 生成透镜几何
       const causticEngine = new CausticEngine(parameters);
@@ -129,6 +132,12 @@ export const ImageUpload: React.FC = () => {
           <div className="relative">
             <div 
               className="border-2 border-solid border-gray-300 rounded-lg overflow-hidden cursor-pointer hover:border-blue-500 transition-all"
+              style={{
+                maxHeight: '350px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
               onClick={() => {
                  setFileList([]);
                  useProjectStore.getState().reset();
@@ -137,7 +146,14 @@ export const ImageUpload: React.FC = () => {
               <img 
                 src={currentImage.url} 
                 alt={currentImage.name}
-                className="w-full max-h-48 object-contain"
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  maxHeight: '300px',
+                  maxWidth: '100%',
+                  objectFit: 'contain',
+                  display: 'block'
+                }}
               />
               <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-20 transition-all flex items-center justify-center">
                 <div className="text-white opacity-0 hover:opacity-100 transition-opacity">

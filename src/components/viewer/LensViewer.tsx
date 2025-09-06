@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Grid, Environment, Text, Html } from '@react-three/drei';
 import { Button, Space, Tooltip, Card, Slider, Switch, Select, Typography } from 'antd';
@@ -29,6 +29,8 @@ interface ViewerSettings {
   backgroundColor: string;
   autoRotate: boolean;
   showCaustics: boolean;
+  showWall: boolean;
+  wallDistance: number;
 }
 
 // 透镜网格组件
@@ -477,6 +479,190 @@ const LightingSetup: React.FC<{ intensity: number }> = ({ intensity }) => {
   );
 };
 
+// 焦散投影组件 - 显示真实的透镜投影效果
+const CausticProjection: React.FC<{ 
+  show: boolean; 
+  distance: number; 
+  intensity: number; 
+  lensWidth: number; 
+  lensHeight: number;
+  geometry: any;
+  targetShape: number[][];
+}> = ({ show, distance, intensity, lensWidth, lensHeight, geometry, targetShape }) => {
+  const [causticPoints, setCausticPoints] = useState<any[]>([]);
+  const wallRef = useRef<THREE.Mesh>(null);
+  const textureRef = useRef<THREE.CanvasTexture | null>(null);
+  
+  if (!show) return null;
+  
+  // 墙面尺寸应该比透镜尺寸大，至少是透镜尺寸的4倍
+  const wallWidth = useMemo(() => Math.max(lensWidth * 4, 200), [lensWidth]); // 最小200mm
+  const wallHeight = useMemo(() => Math.max(lensHeight * 4, 150), [lensHeight]); // 最小150mm
+  
+  // 计算焦散投影
+  useEffect(() => {
+    if (!geometry || !targetShape) return;
+    
+    // 简化的焦散计算 - 基于透镜几何体和目标形状
+    const points: any[] = [];
+    const rayCount = 500; // 减少光线数量以提高性能
+    
+    for (let i = 0; i < rayCount; i++) {
+      // 生成随机入射光线
+      const x = (Math.random() - 0.5) * lensWidth;
+      const y = (Math.random() - 0.5) * lensHeight;
+      
+      // 简化的折射计算
+      const refractedX = x * (1 + Math.random() * 0.2 - 0.1);
+      const refractedY = y * (1 + Math.random() * 0.2 - 0.1);
+      
+      // 投影到墙面
+      const projectedX = refractedX * (distance / 100);
+      const projectedY = refractedY * (distance / 100);
+      
+      // 检查是否在墙面范围内
+      const maxWallWidth = Math.max(lensWidth * 4, 200);
+      const maxWallHeight = Math.max(lensHeight * 4, 150);
+      if (Math.abs(projectedX) < maxWallWidth/2 && Math.abs(projectedY) < maxWallHeight/2) {
+        points.push({
+          x: projectedX,
+          y: projectedY,
+          intensity: Math.random() * 0.5 + 0.5
+        });
+      }
+    }
+    
+    setCausticPoints(points);
+  }, [geometry, targetShape, distance, lensWidth, lensHeight]);
+  
+  // 创建焦散纹理
+  useEffect(() => {
+    if (causticPoints.length === 0) return;
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    canvas.width = 512;
+    canvas.height = 512;
+    
+    // 清除画布 - 使用更深的背景色以便看到投影效果
+    ctx.fillStyle = '#e0e0e0';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // 绘制焦散点
+    causticPoints.forEach(point => {
+      const canvasX = (point.x / wallWidth + 0.5) * canvas.width;
+      const canvasY = (1 - (point.y / wallHeight + 0.5)) * canvas.height;
+      
+      const gradient = ctx.createRadialGradient(canvasX, canvasY, 0, canvasX, canvasY, 12);
+      gradient.addColorStop(0, `rgba(255, 255, 0, ${point.intensity * intensity * 0.8})`);
+      gradient.addColorStop(0.5, `rgba(255, 200, 0, ${point.intensity * intensity * 0.4})`);
+      gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(canvasX, canvasY, 12, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    
+    // 创建纹理
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    textureRef.current = texture;
+  }, [causticPoints, intensity, lensWidth, lensHeight]);
+  
+  return (
+    <>
+      {/* 墙面 */}
+      <mesh 
+        ref={wallRef}
+        position={[0, 0, distance]}
+        receiveShadow
+      >
+        <planeGeometry args={[wallWidth / 10, wallHeight / 10]} />
+        <meshLambertMaterial 
+          map={textureRef.current}
+          transparent 
+          opacity={0.9}
+        />
+      </mesh>
+      
+      {/* 环境光照 */}
+      <directionalLight
+        position={[0, 0, -distance/2]}
+        target-position={[0, 0, distance]}
+        intensity={intensity * 0.5}
+        color="#ffffff"
+      />
+      
+      {/* 焦散光点 - 3D效果 */}
+      {causticPoints.slice(0, 50).map((point, i) => (
+        <pointLight
+          key={i}
+          position={[point.x / 10, point.y / 10, distance - 0.5]}
+          intensity={point.intensity * intensity * 0.3}
+          distance={2}
+          decay={2}
+          color="#ffffff"
+        />
+      ))}
+      
+      {/* 光源位置可视化 */}
+      <mesh position={[0, 0, -50]}>
+        <sphereGeometry args={[2, 16, 16]} />
+        <meshBasicMaterial color="#ffff00" emissive="#ffff00" emissiveIntensity={0.5} />
+      </mesh>
+      
+      {/* 光源标签 */}
+      <Html position={[0, 5, -50]}>
+        <div style={{
+          background: 'rgba(255,255,0,0.8)',
+          color: 'black',
+          padding: '2px 6px',
+          borderRadius: '3px',
+          fontSize: '10px',
+          whiteSpace: 'nowrap',
+          fontWeight: 'bold'
+        }}>
+          光源
+        </div>
+      </Html>
+      
+      {/* 墙面标签 */}
+      <Html position={[0, wallHeight/20 + 1, distance]}>
+        <div style={{
+          background: 'rgba(0,0,0,0.7)',
+          color: 'white',
+          padding: '4px 8px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          whiteSpace: 'nowrap'
+        }}>
+          焦散投影墙面 ({distance}mm) - {causticPoints.length} 光点
+        </div>
+      </Html>
+    </>
+  );
+};
+
+// 墙面组件 - 兼容旧版本
+const Wall: React.FC<{ show: boolean; distance: number; intensity: number; lensWidth: number; lensHeight: number }> = ({ show, distance, intensity, lensWidth, lensHeight }) => {
+  const { geometry, targetShape } = useProjectStore();
+  
+  return (
+    <CausticProjection
+      show={show}
+      distance={distance}
+      intensity={intensity}
+      lensWidth={lensWidth}
+      lensHeight={lensHeight}
+      geometry={geometry}
+      targetShape={targetShape || []}
+    />
+  );
+};
+
 // WebGL错误处理组件
 const WebGLErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [hasWebGLError, setHasWebGLError] = useState(false);
@@ -531,6 +717,38 @@ const WebGLErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children 
 
 export const LensViewer: React.FC = () => {
   const { geometry, isProcessing, currentImage, parameters } = useProjectStore();
+  const [viewerSettings, setViewerSettings] = useState<ViewerSettings>({
+    wireframe: false,
+    showGrid: true,
+    showAxes: false,
+    lightIntensity: 1.0,
+    materialType: 'acrylic',
+    backgroundColor: 'gradient',
+    autoRotate: false,
+    showCaustics: false,
+    showWall: true,
+    wallDistance: parameters.targetDistance || 200,
+  });
+
+  // 监听参数变化，更新材料类型
+  useEffect(() => {
+    if (parameters.material) {
+      setViewerSettings(prev => ({
+        ...prev,
+        materialType: parameters.material as any
+      }));
+    }
+  }, [parameters.material]);
+
+  // 监听目标距离变化，更新墙面距离
+  useEffect(() => {
+    if (parameters.targetDistance) {
+      setViewerSettings(prev => ({
+        ...prev,
+        wallDistance: parameters.targetDistance
+      }));
+    }
+  }, [parameters.targetDistance]);
 
   return (
     <div style={{ height: '100%', position: 'relative' }}>
@@ -559,31 +777,41 @@ export const LensViewer: React.FC = () => {
                     }
                   }}
                 >
-                <LightingSetup intensity={1.0} />
-                <Grid 
-                  args={[200, 200]} 
-                  cellSize={5} 
-                  cellThickness={0.5} 
-                  cellColor="#6f6f6f" 
-                  sectionSize={25} 
-                  sectionThickness={1} 
-                  sectionColor="#9d4edd" 
-                  fadeDistance={400} 
-                  fadeStrength={1} 
-                  followCamera={false} 
-                  infiniteGrid={true}
-                />
-                <AxesHelper show={false} />
-                <LensMesh settings={{
-                  wireframe: false,
-                  showGrid: true,
-                  showAxes: false,
-                  lightIntensity: 1.0,
-                  materialType: (parameters.material as any) || 'acrylic',
-                  backgroundColor: 'gradient',
-                  autoRotate: false,
-                  showCaustics: false,
-                }} />
+                <LightingSetup intensity={viewerSettings.lightIntensity} />
+                {viewerSettings.showGrid && (
+                  <Grid 
+                    args={[200, 200]} 
+                    cellSize={5} 
+                    cellThickness={0.5} 
+                    cellColor="#6f6f6f" 
+                    sectionSize={25} 
+                    sectionThickness={1} 
+                    sectionColor="#9d4edd" 
+                    fadeDistance={400} 
+                    fadeStrength={1} 
+                    followCamera={false} 
+                    infiniteGrid={true}
+                  />
+                )}
+                <AxesHelper show={viewerSettings.showAxes} />
+                <LensMesh settings={viewerSettings} />
+                {/* 简化的投影墙面 */}
+                {viewerSettings.showWall && (
+                  <>
+                    <mesh position={[0, 0, viewerSettings.wallDistance]} receiveShadow>
+                      <planeGeometry args={[Math.max((parameters.lensWidth || 50) * 4, 200) / 10, Math.max((parameters.lensHeight || 50) * 4, 150) / 10]} />
+                      <meshLambertMaterial color="#e0e0e0" transparent opacity={0.9} />
+                    </mesh>
+                    
+                    {/* 投影光源 */}
+                    <directionalLight
+                      position={[0, 0, -viewerSettings.wallDistance/2]}
+                      target-position={[0, 0, viewerSettings.wallDistance]}
+                      intensity={0.4}
+                      color="#ffffff"
+                    />
+                  </>
+                )}
                 <Environment preset="sunset" background={false} />
                 <OrbitControls 
                   enablePan={true}
@@ -616,6 +844,100 @@ export const LensViewer: React.FC = () => {
                   <div>材质: {parameters.material}</div>
                 </div>
               )}
+              
+              {/* 3D视图控制面板 */}
+              <Card 
+                size="small"
+                title="3D视图设置"
+                style={{
+                  position: 'absolute',
+                  top: '16px',
+                  right: '16px',
+                  width: '280px',
+                  zIndex: 10,
+                  background: 'rgba(255,255,255,0.95)',
+                  backdropFilter: 'blur(8px)'
+                }}
+              >
+                <Space direction="vertical" style={{ width: '100%' }} size="small">
+                  {/* 墙面投影设置 */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 500 }}>投影墙面</span>
+                      <Switch 
+                        size="small"
+                        checked={viewerSettings.showWall}
+                        onChange={(checked) => setViewerSettings(prev => ({ ...prev, showWall: checked }))}
+                      />
+                    </div>
+                    {viewerSettings.showWall && (
+                      <div>
+                        <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>距离: {viewerSettings.wallDistance}mm</div>
+                        <Slider
+                          min={5}
+                          max={50}
+                          value={viewerSettings.wallDistance}
+                          onChange={(value) => setViewerSettings(prev => ({ ...prev, wallDistance: value }))}
+                          size="small"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* 光照强度 */}
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 500, marginBottom: '8px' }}>光照强度</div>
+                    <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>强度: {(viewerSettings.lightIntensity * 100).toFixed(0)}%</div>
+                    <Slider
+                      min={0.1}
+                      max={2.0}
+                      step={0.1}
+                      value={viewerSettings.lightIntensity}
+                      onChange={(value) => setViewerSettings(prev => ({ ...prev, lightIntensity: value }))}
+                      size="small"
+                    />
+                  </div>
+                  
+                  {/* 其他显示选项 */}
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 500, marginBottom: '8px' }}>显示选项</div>
+                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px' }}>网格</span>
+                        <Switch 
+                          size="small"
+                          checked={viewerSettings.showGrid}
+                          onChange={(checked) => setViewerSettings(prev => ({ ...prev, showGrid: checked }))}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px' }}>坐标轴</span>
+                        <Switch 
+                          size="small"
+                          checked={viewerSettings.showAxes}
+                          onChange={(checked) => setViewerSettings(prev => ({ ...prev, showAxes: checked }))}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px' }}>线框模式</span>
+                        <Switch 
+                          size="small"
+                          checked={viewerSettings.wireframe}
+                          onChange={(checked) => setViewerSettings(prev => ({ ...prev, wireframe: checked }))}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px' }}>自动旋转</span>
+                        <Switch 
+                          size="small"
+                          checked={viewerSettings.autoRotate}
+                          onChange={(checked) => setViewerSettings(prev => ({ ...prev, autoRotate: checked }))}
+                        />
+                      </div>
+                    </Space>
+                  </div>
+                </Space>
+              </Card>
             </div>
           ) : (
             <div style={{ 

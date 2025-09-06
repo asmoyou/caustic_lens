@@ -2,9 +2,11 @@ import { create } from 'zustand';
 import { ProjectState, ImageData, CausticParameters, LensGeometry } from '../types';
 
 interface ProjectStore extends ProjectState {
+  targetShape: number[][] | null;
   setImage: (image: ImageData) => void;
   setParameters: (params: Partial<CausticParameters>) => void;
   setGeometry: (geometry: LensGeometry) => void;
+  setTargetShape: (targetShape: number[][]) => void;
   setProcessing: (processing: boolean) => void;
   setError: (error: string | null) => void;
   reset: () => void;
@@ -36,6 +38,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
   currentImage: null,
   parameters: defaultParameters,
   geometry: null,
+  targetShape: null,
   isProcessing: false,
   error: null,
   
@@ -44,11 +47,13 @@ export const useProjectStore = create<ProjectStore>((set) => ({
     parameters: { ...state.parameters, ...params } 
   })),
   setGeometry: (geometry) => set({ geometry }),
+  setTargetShape: (targetShape) => set({ targetShape }),
   setProcessing: (processing) => set({ isProcessing: processing }),
   setError: (error) => set({ error }),
   reset: () => set({
     currentImage: null,
     geometry: null,
+    targetShape: null,
     isProcessing: false,
     error: null,
     parameters: defaultParameters,
