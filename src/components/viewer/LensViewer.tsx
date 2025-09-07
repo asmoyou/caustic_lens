@@ -812,7 +812,8 @@ export const LensViewer: React.FC = () => {
                     />
                   </>
                 )}
-                <Environment preset="sunset" background={false} />
+                {/* 移除Environment组件避免HDR资源请求导致的网络问题 */}
+                {/* <Environment preset="sunset" background={false} /> */}
                 <OrbitControls 
                   enablePan={true}
                   enableZoom={true}
