@@ -1,24 +1,134 @@
 import { CausticParameters, Point3D, LensGeometry, Point2D } from '../../types';
+import { ShapeFromCausticsGenerator } from '../shapeFromCaustics';
+import * as THREE from 'three';
 
 export class CausticEngine {
   private parameters: CausticParameters;
   private rayCount: number = 10000;
   private convergenceThreshold: number = 0.001;
   private maxIterations: number = 100;
+  private shapeFromCausticsGenerator: ShapeFromCausticsGenerator;
 
   constructor(parameters: CausticParameters) {
     this.parameters = parameters;
+    
+    // 初始化ShapeFromCaustics生成器
+    this.shapeFromCausticsGenerator = new ShapeFromCausticsGenerator({
+      heightFieldResolution: Math.min(parameters.resolution || 32, 64), // 限制分辨率以提高性能
+      photonMapSize: 128,
+      maxIterations: 50, // 减少迭代次数以提高速度
+      convergenceThreshold: 1e-3,
+      refractiveIndex: parameters.refractiveIndex || 1.49,
+      wavelengths: [0.55], // 绿光
+      lightPosition: new THREE.Vector3(0, 0, 50),
+      targetDistance: parameters.targetDistance || 100,
+      heightOffset: (parameters.thickness || 5) / 2,
+      lensWidth: parameters.lensWidth || 50,
+      lensHeight: parameters.lensHeight || 50,
+      thickness: parameters.thickness || 5
+    });
   }
 
-  generateLensGeometry(targetShape: number[][]): LensGeometry {
+  async generateLensGeometry(targetShape: number[][]): Promise<LensGeometry> {
     if (targetShape.length === 0) {
       console.warn('Target shape is empty, creating default geometry');
-      // 创建一个默认的简单几何体
       return this.createDefaultGeometry();
     }
 
-    console.log('Generating lens geometry with target shape:', targetShape.length, 'points');
-    console.log('Parameters:', this.parameters);
+    console.log('使用ShapeFromCaustics算法生成透镜几何体...');
+    console.log('目标形状尺寸:', targetShape.length, 'x', targetShape[0]?.length);
+    console.log('算法参数:', this.parameters);
+    
+    try {
+      // 将目标形状转换为ImageData格式
+      const imageData = this.convertTargetShapeToImageData(targetShape);
+      
+      // 使用ShapeFromCaustics算法生成透镜
+      const geometry = await this.shapeFromCausticsGenerator.generateLens(imageData);
+      
+      console.log('ShapeFromCaustics算法生成完成:', {
+        vertices: geometry.vertices.length,
+        faces: geometry.faces.length,
+        normals: geometry.normals.length
+      });
+      
+      // 验证生成的几何体
+      if (this.validateGeometry(geometry)) {
+        return geometry;
+      } else {
+        console.warn('ShapeFromCaustics生成的几何体无效，使用备用算法');
+        return this.generateLensGeometryFallback(targetShape);
+      }
+      
+    } catch (error) {
+      console.error('ShapeFromCaustics算法失败:', error);
+      console.log('使用备用算法生成透镜...');
+      return this.generateLensGeometryFallback(targetShape);
+    }
+  }
+  
+  /**
+   * 将目标形状转换为ImageData格式
+   */
+  private convertTargetShapeToImageData(targetShape: number[][]): ImageData {
+    const height = targetShape.length;
+    const width = targetShape[0]?.length || 0;
+    
+    if (width === 0) {
+      throw new Error('目标形状数据无效');
+    }
+    
+    const imageData = new ImageData(width, height);
+    const data = imageData.data;
+    
+    for (let i = 0; i < height; i++) {
+      for (let j = 0; j < width; j++) {
+        const intensity = Math.max(0, Math.min(1, targetShape[i][j] || 0));
+        const pixelValue = Math.floor(intensity * 255);
+        const pixelIndex = (i * width + j) * 4;
+        
+        data[pixelIndex] = pixelValue;     // R
+        data[pixelIndex + 1] = pixelValue; // G
+        data[pixelIndex + 2] = pixelValue; // B
+        data[pixelIndex + 3] = 255;        // A
+      }
+    }
+    
+    return imageData;
+  }
+  
+  /**
+   * 验证几何体数据的有效性
+   */
+  private validateGeometry(geometry: LensGeometry): boolean {
+    if (!geometry.vertices || geometry.vertices.length === 0) {
+      console.warn('几何体缺少顶点数据');
+      return false;
+    }
+    
+    if (!geometry.faces || geometry.faces.length === 0) {
+      console.warn('几何体缺少面数据');
+      return false;
+    }
+    
+    // 检查顶点数据的有效性
+    const invalidVertices = geometry.vertices.filter(v => 
+      !isFinite(v.x) || !isFinite(v.y) || !isFinite(v.z)
+    );
+    
+    if (invalidVertices.length > 0) {
+      console.warn('发现无效顶点:', invalidVertices.length);
+      return false;
+    }
+    
+    return true;
+  }
+  
+  /**
+   * 备用透镜生成算法（原有算法）
+   */
+  private generateLensGeometryFallback(targetShape: number[][]): LensGeometry {
+    console.log('使用备用算法生成透镜几何体...');
     
     const vertices = this.calculateLensSurface(targetShape);
     console.log('Generated vertices:', vertices.length);

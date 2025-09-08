@@ -62,7 +62,7 @@ export const ImageUpload: React.FC = () => {
       // 生成透镜几何
       const causticEngine = new CausticEngine(parameters);
       console.log('开始生成透镜几何...');
-      const geometry = causticEngine.generateLensGeometry(processingResult.targetShape);
+      const geometry = await causticEngine.generateLensGeometry(processingResult.targetShape);
       console.log('透镜几何生成完成:', geometry);
       setProgress(75);
 
