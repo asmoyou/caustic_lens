@@ -50,10 +50,15 @@ export interface CausticParameters {
   convergenceThreshold?: number;
   maxIterations?: number;
   lightSource: {
-    type: string;
+    type: 'point' | 'area' | 'parallel';
     intensity: number;
     wavelength: number;
     position: { x: number; y: number; z: number };
+    // 面光源特有参数
+    width?: number;  // 面光源宽度
+    height?: number; // 面光源高度
+    // 光线方向（用于平行光和面光源）
+    direction?: { x: number; y: number; z: number };
   };
   optimization: {
     iterations: number;

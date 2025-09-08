@@ -25,7 +25,10 @@ const defaultParameters: CausticParameters = {
     type: 'parallel',
     intensity: 1.0,
     wavelength: 550,
-    position: { x: 0, y: 0, z: -100 }
+    position: { x: 0, y: 0, z: -100 },
+    width: 50,  // 面光源默认宽度
+    height: 50, // 面光源默认高度
+    direction: { x: 0, y: 0, z: 1 } // 默认向前方向
   },
   optimization: {
     iterations: 100,

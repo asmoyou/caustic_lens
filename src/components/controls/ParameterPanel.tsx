@@ -403,7 +403,6 @@ export const ParameterPanel: React.FC = () => {
           >
             <Option value="parallel">平行光</Option>
             <Option value="point">点光源</Option>
-            <Option value="collimated">准直光</Option>
           </Select>
         </Form.Item>
 
@@ -478,6 +477,8 @@ export const ParameterPanel: React.FC = () => {
             />
           </div>
         </Form.Item>
+
+
       </Form>
     </Card>
   );

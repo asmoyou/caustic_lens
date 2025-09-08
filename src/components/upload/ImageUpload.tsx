@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, Button, Card, Typography, Progress, message } from 'antd';
-import { UploadOutlined, DeleteOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { UploadOutlined, DeleteOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { UploadFile, UploadProps } from 'antd';
 import { useProjectStore } from '../../stores/projectStore';
 import { ImageProcessor } from '../../algorithms/imageProcessing';
@@ -10,7 +10,7 @@ import { ImageData } from '../../types';
 const { Text } = Typography;
 
 export const ImageUpload: React.FC = () => {
-  const { currentImage, setImage, setGeometry, setTargetShape, setProcessing, setError, parameters, isProcessing } = useProjectStore();
+  const { currentImage, setImage, setGeometry, setTargetShape, setProcessing, setError, parameters, isProcessing, geometry } = useProjectStore();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [progress, setProgress] = useState(0);
 
@@ -131,17 +131,13 @@ export const ImageUpload: React.FC = () => {
         ) : (
           <div className="relative">
             <div 
-              className="border-2 border-solid border-gray-300 rounded-lg overflow-hidden cursor-pointer hover:border-blue-500 transition-all"
+              className="border-2 border-solid border-gray-300 rounded-lg overflow-hidden"
               style={{
                 maxHeight: '350px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
-              onClick={() => {
-                 setFileList([]);
-                 useProjectStore.getState().reset();
-               }}
             >
               <img 
                 src={currentImage.url} 
@@ -155,12 +151,6 @@ export const ImageUpload: React.FC = () => {
                   display: 'block'
                 }}
               />
-              <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-20 transition-all flex items-center justify-center">
-                <div className="text-white opacity-0 hover:opacity-100 transition-opacity">
-                  <UploadOutlined className="text-2xl mb-2" />
-                  <div>点击更换图片</div>
-                </div>
-              </div>
             </div>
             <div className="mt-2 text-sm text-gray-600">
               {currentImage.name} ({(currentImage.size / 1024 / 1024).toFixed(2)} MB)
@@ -200,13 +190,13 @@ export const ImageUpload: React.FC = () => {
               <div className="flex gap-2">
                 <Button 
                   type="primary" 
-                  icon={<PlayCircleOutlined />} 
+                  icon={geometry ? <ReloadOutlined /> : <PlayCircleOutlined />} 
                   onClick={handleProcess}
                   loading={isProcessing}
                   disabled={isProcessing}
                   className="flex-1"
                 >
-                  {isProcessing ? '计算中...' : '开始计算'}
+                  {isProcessing ? '计算中...' : (geometry ? '重新计算' : '开始计算')}
                 </Button>
               </div>
             )}

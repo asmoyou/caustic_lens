@@ -34,7 +34,7 @@ interface ViewerSettings {
 }
 
 // 透镜网格组件
-const LensMesh: React.FC<{ settings: ViewerSettings }> = ({ settings }) => {
+const LensMesh: React.FC<{ settings: ViewerSettings; onRotationChange?: (rotation: number) => void }> = ({ settings, onRotationChange }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const { geometry } = useProjectStore();
   const [hovered, setHovered] = useState(false);
@@ -322,6 +322,8 @@ const LensMesh: React.FC<{ settings: ViewerSettings }> = ({ settings }) => {
       wireframe: settings.wireframe,
       transparent: true,
       opacity: settings.wireframe ? 1 : 0.8,
+      side: THREE.DoubleSide, // 双面渲染确保内外都可见
+      depthWrite: !settings.wireframe, // 线框模式时禁用深度写入
     };
 
     switch (settings.materialType) {
@@ -384,6 +386,16 @@ const LensMesh: React.FC<{ settings: ViewerSettings }> = ({ settings }) => {
     }
   }, [settings.materialType, settings.wireframe]);
 
+  // 自动旋转逻辑
+  useFrame((state, delta) => {
+    if (settings.autoRotate && meshRef.current) {
+      meshRef.current.rotation.y += delta * 0.5; // 每秒旋转0.5弧度
+      if (onRotationChange) {
+        onRotationChange(meshRef.current.rotation.y);
+      }
+    }
+  });
+
   return (
     <mesh
       ref={meshRef}
@@ -416,8 +428,8 @@ const AxesHelper: React.FC<{ show: boolean }> = ({ show }) => {
   return (
     <group>
       {/* X轴 - 红色 */}
-      <mesh position={[25, 0, 0]}>
-        <cylinderGeometry args={[0.2, 0.2, 50]} rotation={[0, 0, Math.PI / 2]} />
+      <mesh position={[25, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.2, 0.2, 50]} />
         <meshBasicMaterial color="red" />
       </mesh>
       <Html position={[52, 0, 0]}>
@@ -434,8 +446,8 @@ const AxesHelper: React.FC<{ show: boolean }> = ({ show }) => {
       </Html>
       
       {/* Z轴 - 蓝色 */}
-      <mesh position={[0, 0, 25]}>
-        <cylinderGeometry args={[0.2, 0.2, 50]} rotation={[Math.PI / 2, 0, 0]} />
+      <mesh position={[0, 0, 25]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.2, 0.2, 50]} />
         <meshBasicMaterial color="blue" />
       </mesh>
       <Html position={[0, 0, 52]}>
@@ -456,212 +468,555 @@ const CameraController: React.FC<{ onCameraChange?: (camera: THREE.Camera) => vo
   return null;
 };
 
-// 光照设置
-const LightingSetup: React.FC<{ intensity: number }> = ({ intensity }) => {
+// 光照设置 - 模拟真实的透镜投影光源
+const LightingSetup: React.FC<{ intensity: number; wallDistance: number }> = ({ intensity, wallDistance }) => {
   return (
     <>
-      <ambientLight intensity={0.4 * intensity} />
+      {/* 环境光 - 提供基础照明 */}
+      <ambientLight intensity={0.2 * intensity} />
+      
+      {/* 主光源 - 从透镜前方照射，模拟投影仪光源 */}
       <directionalLight 
-        position={[10, 10, 5]} 
-        intensity={0.8 * intensity}
+        position={[0, 0, -wallDistance * 0.8]} 
+        target-position={[0, 0, 0]}
+        intensity={1.2 * intensity}
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
-        shadow-camera-far={50}
-        shadow-camera-left={-10}
-        shadow-camera-right={10}
-        shadow-camera-top={10}
-        shadow-camera-bottom={-10}
+        shadow-camera-far={wallDistance * 2}
+        shadow-camera-left={-50}
+        shadow-camera-right={50}
+        shadow-camera-top={50}
+        shadow-camera-bottom={-50}
       />
-      <pointLight position={[-10, -10, -5]} intensity={0.3 * intensity} />
-      <hemisphereLight skyColor="#87CEEB" groundColor="#362d1d" intensity={0.2 * intensity} />
+      
+      {/* 辅助光源 - 从侧面提供轮廓照明 */}
+      <pointLight position={[-30, 20, -10]} intensity={0.3 * intensity} color="#ffffff" />
+      
+      {/* 天空光 - 模拟自然光照 */}
+      <hemisphereLight skyColor="#87CEEB" groundColor="#362d1d" intensity={0.1 * intensity} />
     </>
+  );
+};
+
+// 光源可视化组件
+const LightSourceVisualization: React.FC<{ lightSource: any }> = ({ lightSource }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  
+  // 根据光源类型选择颜色
+  const getSourceColor = () => {
+    switch (lightSource.type) {
+      case 'point': return '#ffff00'; // 黄色
+      case 'parallel': return '#0088ff'; // 蓝色
+      default: return '#ffffff';
+    }
+  };
+  
+  return (
+    <group>
+      {/* 点光源可视化 */}
+      {lightSource.type === 'point' && (
+        <>
+          <mesh 
+            position={[lightSource.position.x, lightSource.position.y, lightSource.position.z]}
+            ref={meshRef}
+          >
+            <sphereGeometry args={[3, 16, 16]} />
+            <meshBasicMaterial color={getSourceColor()} transparent opacity={0.8} />
+          </mesh>
+          {/* 光线指示器 */}
+          <mesh position={[lightSource.position.x, lightSource.position.y, lightSource.position.z - 5]}>
+            <coneGeometry args={[2, 10, 8]} />
+            <meshBasicMaterial color={getSourceColor()} transparent opacity={0.3} />
+          </mesh>
+        </>
+      )}
+      
+
+      
+      {/* 平行光源可视化 */}
+      {lightSource.type === 'parallel' && (
+        <>
+          {/* 平行光源用箭头表示 */}
+          <mesh position={[0, 0, -50]}>
+            <cylinderGeometry args={[1, 1, 20, 8]} />
+            <meshBasicMaterial color={getSourceColor()} transparent opacity={0.6} />
+          </mesh>
+          <mesh position={[0, 0, -35]}>
+            <coneGeometry args={[3, 10, 8]} />
+            <meshBasicMaterial color={getSourceColor()} transparent opacity={0.8} />
+          </mesh>
+          {/* 平行光线指示 */}
+          {Array.from({ length: 9 }, (_, i) => {
+            const x = (i % 3 - 1) * 20;
+            const y = (Math.floor(i / 3) - 1) * 20;
+            return (
+              <mesh key={i} position={[x, y, -70]}>
+                <cylinderGeometry args={[0.5, 0.5, 15, 6]} />
+                <meshBasicMaterial color={getSourceColor()} transparent opacity={0.4} />
+              </mesh>
+            );
+          })}
+        </>
+      )}
+    </group>
   );
 };
 
 // 焦散投影组件 - 显示真实的透镜投影效果
-const CausticProjection: React.FC<{ 
-  show: boolean; 
-  distance: number; 
-  intensity: number; 
-  lensWidth: number; 
+const CausticProjection: React.FC<{
+  show: boolean;
+  distance: number;
+  intensity: number;
+  lensWidth: number;
   lensHeight: number;
   geometry: any;
   targetShape: number[][];
-}> = ({ show, distance, intensity, lensWidth, lensHeight, geometry, targetShape }) => {
-  const [causticPoints, setCausticPoints] = useState<any[]>([]);
-  const wallRef = useRef<THREE.Mesh>(null);
-  const textureRef = useRef<THREE.CanvasTexture | null>(null);
+  resolution: number;
+  refractiveIndex: number;
+  focalLength: number;
+  lensRotation?: number;
+  isAutoRotating?: boolean;
+  lightSource: any;
+}> = ({ show, distance, intensity, lensWidth, lensHeight, geometry, targetShape, resolution, refractiveIndex, focalLength, lensRotation = 0, isAutoRotating = false, lightSource }) => {
+  const [pointCount, setPointCount] = useState(0);
+  const [isCalculating, setIsCalculating] = useState(false);
   
   if (!show) return null;
   
-  // 墙面尺寸应该比透镜尺寸大，至少是透镜尺寸的4倍
-  const wallWidth = useMemo(() => Math.max(lensWidth * 4, 200), [lensWidth]); // 最小200mm
-  const wallHeight = useMemo(() => Math.max(lensHeight * 4, 150), [lensHeight]); // 最小150mm
+  // 墙面尺寸固定为300mm×300mm
+  const wallWidth = 300;
+  const wallHeight = 300;
   
-  // 计算焦散投影
-  useEffect(() => {
-    if (!geometry || !targetShape) return;
+  // 根据光源类型设置光源位置（在useMemo外部定义以便JSX访问）
+  const isPointLight = lightSource?.type === 'point';
+  const lightDistance = 50; // 光源距离透镜50mm
+  const lightPosition = isPointLight ? { x: 0, y: 0, z: -lightDistance } : null;
+  
+  // 生成焦散纹理 - 使用useMemo避免重复计算
+  const causticTexture = useMemo(() => {
+    setIsCalculating(true);
+    console.log('计算焦散投影:', { distance, intensity, lensWidth, lensHeight, geometry });
     
-    // 简化的焦散计算 - 基于透镜几何体和目标形状
-    const points: any[] = [];
-    const rayCount = 500; // 减少光线数量以提高性能
-    
-    for (let i = 0; i < rayCount; i++) {
-      // 生成随机入射光线
-      const x = (Math.random() - 0.5) * lensWidth;
-      const y = (Math.random() - 0.5) * lensHeight;
-      
-      // 简化的折射计算
-      const refractedX = x * (1 + Math.random() * 0.2 - 0.1);
-      const refractedY = y * (1 + Math.random() * 0.2 - 0.1);
-      
-      // 投影到墙面
-      const projectedX = refractedX * (distance / 100);
-      const projectedY = refractedY * (distance / 100);
-      
-      // 检查是否在墙面范围内
-      const maxWallWidth = Math.max(lensWidth * 4, 200);
-      const maxWallHeight = Math.max(lensHeight * 4, 150);
-      if (Math.abs(projectedX) < maxWallWidth/2 && Math.abs(projectedY) < maxWallHeight/2) {
-        points.push({
-          x: projectedX,
-          y: projectedY,
-          intensity: Math.random() * 0.5 + 0.5
-        });
-      }
+    // 检查必要参数
+    if (!lensWidth || !lensHeight || lensWidth <= 0 || lensHeight <= 0) {
+      console.warn('透镜尺寸无效:', { lensWidth, lensHeight });
+      return null;
     }
     
-    setCausticPoints(points);
-  }, [geometry, targetShape, distance, lensWidth, lensHeight]);
-  
-  // 创建焦散纹理
-  useEffect(() => {
-    if (causticPoints.length === 0) return;
-    
+    // 创建canvas
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) return null;
     
     canvas.width = 512;
     canvas.height = 512;
     
-    // 清除画布 - 使用更深的背景色以便看到投影效果
-    ctx.fillStyle = '#e0e0e0';
+    // 清除画布 - 使用透明背景
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // 设置半透明深色背景以便看到光点
+    ctx.fillStyle = 'rgba(20, 20, 20, 0.8)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // 绘制焦散点
-    causticPoints.forEach(point => {
+    // 基于causticsEngineering的物理正确焦散算法
+    const points: any[] = [];
+    // 动态调整光点数量：旋转时使用低精度，停止时使用高精度
+    const rayCount = isAutoRotating ? 1000 : 15000; // 旋转时1000光点，停止时15000光点
+    
+    // 设置不同光源的颜色
+    const lightColor = isPointLight ? 
+      { r: 255, g: 255, b: 100 } : // 点光源：暖黄色
+      { r: 100, g: 150, b: 255 }; // 平行光：冷蓝色
+    
+    // 透镜网格参数（基于causticsEngineering的网格方法）
+    const meshResolution = resolution; // 使用参数设置中的分辨率
+    const lensRadius = Math.min(lensWidth, lensHeight) * 0.45;
+    // 使用传入的焦距和折射率参数
+    
+    // 创建透镜表面网格（模拟causticsEngineering的squareMesh）
+    const lensGrid: { x: number; y: number; z: number; deflectionX: number; deflectionY: number }[][] = [];
+    
+    for (let i = 0; i <= meshResolution; i++) {
+      lensGrid[i] = [];
+      for (let j = 0; j <= meshResolution; j++) {
+        const x = (i / meshResolution - 0.5) * lensWidth;
+        const y = (j / meshResolution - 0.5) * lensHeight;
+        const r = Math.sqrt(x * x + y * y);
+        
+        // 计算透镜表面高度（基于目标图案优化）
+        let surfaceHeight = 0;
+        if (r < lensRadius) {
+          // 基础球面透镜形状
+          const curvatureRadius = lensRadius * 1.5;
+          surfaceHeight = Math.sqrt(Math.max(0, curvatureRadius * curvatureRadius - r * r)) - curvatureRadius;
+          
+          // 添加基于目标形状的表面调制（改进版本，更准确地反映目标图案）
+          if (targetShape && targetShape.length > 0) {
+            const shapeX = Math.floor((x / lensWidth + 0.5) * targetShape.length);
+            const shapeY = Math.floor((y / lensHeight + 0.5) * targetShape[0].length);
+            if (shapeX >= 0 && shapeX < targetShape.length && shapeY >= 0 && shapeY < targetShape[0].length) {
+              const targetIntensity = targetShape[shapeX][shapeY];
+              // 使用更复杂的表面调制公式，基于causticsEngineering的方法
+              const intensityFactor = Math.max(0.1, Math.min(targetIntensity, 2.0));
+              const radialFactor = 1.0 - (r / lensRadius) * (r / lensRadius);
+              const heightModulation = intensityFactor * radialFactor * 5.0 * (refractiveIndex - 1) / refractiveIndex;
+              surfaceHeight += heightModulation;
+            }
+          }
+        }
+        
+        // 先存储表面高度，稍后计算偏转
+        lensGrid[i][j] = {
+          x,
+          y,
+          z: surfaceHeight,
+          deflectionX: 0, // 稍后计算
+          deflectionY: 0  // 稍后计算
+        };
+      }
+    }
+    
+    // 第二遍：计算光线偏转（基于已完成的表面高度网格）
+    const H = focalLength;
+    const metersPerPixel = lensWidth / meshResolution;
+    
+    for (let i = 0; i <= meshResolution; i++) {
+      for (let j = 0; j <= meshResolution; j++) {
+        const x = lensGrid[i][j].x;
+        const y = lensGrid[i][j].y;
+        const surfaceHeight = lensGrid[i][j].z;
+        
+        // 计算表面梯度（用于确定法向量）
+        const gradientX = i > 0 && i < meshResolution ? 
+          (lensGrid[i+1][j].z - lensGrid[i-1][j].z) / (2 * metersPerPixel) : 0;
+        const gradientY = j > 0 && j < meshResolution ? 
+          (lensGrid[i][j+1].z - lensGrid[i][j-1].z) / (2 * metersPerPixel) : 0;
+        
+        // 存储表面梯度信息，用于后续光线追踪时的斯涅尔定律计算
+        lensGrid[i][j].gradientX = gradientX;
+        lensGrid[i][j].gradientY = gradientY;
+        
+        // 为平行光源预计算偏转（向后兼容）
+        if (lightSource.type === 'parallel') {
+          // 基于斯涅尔定律的正确偏转计算
+          // 计算表面法向量（归一化）
+          const normalLength = Math.sqrt(gradientX * gradientX + gradientY * gradientY + 1);
+          const normalX = -gradientX / normalLength;
+          const normalY = -gradientY / normalLength;
+          const normalZ = 1 / normalLength;
+          
+          // 入射光线方向（垂直入射，沿z轴负方向）
+          const incidentX = 0;
+          const incidentY = 0;
+          const incidentZ = -1;
+          
+          // 计算入射角余弦值
+          const cosIncident = -(incidentX * normalX + incidentY * normalY + incidentZ * normalZ);
+          
+          // 折射率比值
+          const n = 1.0 / refractiveIndex; // 从空气到透镜材料
+          
+          // 计算折射角余弦值（斯涅尔定律）
+          const discriminant = 1 - n * n * (1 - cosIncident * cosIncident);
+          
+          if (discriminant >= 0) {
+            const cosRefracted = Math.sqrt(discriminant);
+            
+            // 计算折射光线方向
+            const refractedX = n * incidentX + (n * cosIncident - cosRefracted) * normalX;
+            const refractedY = n * incidentY + (n * cosIncident - cosRefracted) * normalY;
+            const refractedZ = n * incidentZ + (n * cosIncident - cosRefracted) * normalZ;
+            
+            // 计算偏转角度（相对于原始方向的偏移）
+            const deflectionX = refractedX / Math.abs(refractedZ);
+            const deflectionY = refractedY / Math.abs(refractedZ);
+            
+            // 更新偏转值
+            lensGrid[i][j].deflectionX = deflectionX;
+            lensGrid[i][j].deflectionY = deflectionY;
+          } else {
+             // 全反射情况，设置为0偏转
+             lensGrid[i][j].deflectionX = 0;
+             lensGrid[i][j].deflectionY = 0;
+           }
+        } else {
+          // 对于点光源，偏转将在光线追踪时动态计算
+          lensGrid[i][j].deflectionX = 0;
+          lensGrid[i][j].deflectionY = 0;
+        }
+      }
+    }
+    
+    // 光线追踪（使用网格插值）
+    for (let i = 0; i < rayCount; i++) {
+      // 在透镜表面生成随机入射点
+      const angle = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * lensRadius;
+      let lensX = Math.cos(angle) * r;
+      let lensY = Math.sin(angle) * r;
+      
+      // 根据光源类型计算入射光线方向
+      let incidentDirX = 0;
+      let incidentDirY = 0;
+      let incidentDirZ = 1; // 平行光从z=-50朝向z=0（正方向）
+      
+      if (lightSource.type === 'point') {
+        // 点光源：从光源位置到透镜表面的光线
+        const lightX = lightSource.position.x;
+        const lightY = lightSource.position.y;
+        const lightZ = lightSource.position.z;
+        
+        const dirX = lensX - lightX;
+        const dirY = lensY - lightY;
+        const dirZ = 0 - lightZ; // 透镜在z=0平面
+        
+        const dirLength = Math.sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
+        incidentDirX = dirX / dirLength;
+        incidentDirY = dirY / dirLength;
+        incidentDirZ = dirZ / dirLength;
+      }
+      // 平行光源：从z=-50朝向透镜z=0的正方向入射
+      
+      // 应用透镜旋转
+      if (lensRotation !== 0) {
+        const cos = Math.cos(lensRotation);
+        const sin = Math.sin(lensRotation);
+        const rotatedX = lensX * cos - lensY * sin;
+        const rotatedY = lensX * sin + lensY * cos;
+        lensX = rotatedX;
+        lensY = rotatedY;
+      }
+      
+      // 在网格中查找对应位置并插值
+      const gridX = (lensX / lensWidth + 0.5) * meshResolution;
+      const gridY = (lensY / lensHeight + 0.5) * meshResolution;
+      
+      if (gridX >= 0 && gridX < meshResolution && gridY >= 0 && gridY < meshResolution) {
+        const i0 = Math.floor(gridX);
+        const j0 = Math.floor(gridY);
+        const i1 = Math.min(i0 + 1, meshResolution);
+        const j1 = Math.min(j0 + 1, meshResolution);
+        
+        // 双线性插值获取偏转角度或表面梯度
+        const fx = gridX - i0;
+        const fy = gridY - j0;
+        
+        let deflectionX, deflectionY;
+        
+        if (lightSource.type === 'parallel') {
+          // 平行光源：使用预计算的偏转
+          deflectionX = 
+            lensGrid[i0][j0].deflectionX * (1 - fx) * (1 - fy) +
+            lensGrid[i1][j0].deflectionX * fx * (1 - fy) +
+            lensGrid[i0][j1].deflectionX * (1 - fx) * fy +
+            lensGrid[i1][j1].deflectionX * fx * fy;
+            
+          deflectionY = 
+            lensGrid[i0][j0].deflectionY * (1 - fx) * (1 - fy) +
+            lensGrid[i1][j0].deflectionY * fx * (1 - fy) +
+            lensGrid[i0][j1].deflectionY * (1 - fx) * fy +
+            lensGrid[i1][j1].deflectionY * fx * fy;
+        } else {
+          // 点光源：动态计算偏转
+          // 插值获取表面梯度
+          const gradientX = 
+            lensGrid[i0][j0].gradientX * (1 - fx) * (1 - fy) +
+            lensGrid[i1][j0].gradientX * fx * (1 - fy) +
+            lensGrid[i0][j1].gradientX * (1 - fx) * fy +
+            lensGrid[i1][j1].gradientX * fx * fy;
+            
+          const gradientY = 
+            lensGrid[i0][j0].gradientY * (1 - fx) * (1 - fy) +
+            lensGrid[i1][j0].gradientY * fx * (1 - fy) +
+            lensGrid[i0][j1].gradientY * (1 - fx) * fy +
+            lensGrid[i1][j1].gradientY * fx * fy;
+          
+          // 计算表面法向量（归一化）
+          const normalLength = Math.sqrt(gradientX * gradientX + gradientY * gradientY + 1);
+          const normalX = -gradientX / normalLength;
+          const normalY = -gradientY / normalLength;
+          const normalZ = 1 / normalLength;
+          
+          // 计算入射角余弦值
+          const cosIncident = -(incidentDirX * normalX + incidentDirY * normalY + incidentDirZ * normalZ);
+          
+          // 折射率比值
+          const n = 1.0 / refractiveIndex; // 从空气到透镜材料
+          
+          // 计算折射角余弦值（斯涅尔定律）
+          const discriminant = 1 - n * n * (1 - cosIncident * cosIncident);
+          
+          if (discriminant >= 0) {
+            const cosRefracted = Math.sqrt(discriminant);
+            
+            // 计算折射光线方向
+            const refractedX = n * incidentDirX + (n * cosIncident - cosRefracted) * normalX;
+            const refractedY = n * incidentDirY + (n * cosIncident - cosRefracted) * normalY;
+            const refractedZ = n * incidentDirZ + (n * cosIncident - cosRefracted) * normalZ;
+            
+            // 计算偏转角度（相对于原始方向的偏移）
+            deflectionX = refractedX / Math.abs(refractedZ);
+            deflectionY = refractedY / Math.abs(refractedZ);
+          } else {
+            // 全反射情况，设置为0偏转
+            deflectionX = 0;
+            deflectionY = 0;
+          }
+        }
+        
+        // 应用透镜旋转到偏转向量（关键修复）
+        if (lensRotation !== 0) {
+          const cos = Math.cos(lensRotation);
+          const sin = Math.sin(lensRotation);
+          const rotatedDeflectionX = deflectionX * cos - deflectionY * sin;
+          const rotatedDeflectionY = deflectionX * sin + deflectionY * cos;
+          deflectionX = rotatedDeflectionX;
+          deflectionY = rotatedDeflectionY;
+        }
+        
+        // 计算投影位置
+        const projectedX = lensX + deflectionX * distance;
+        const projectedY = lensY + deflectionY * distance;
+        
+        // 检查是否在墙面范围内
+        if (Math.abs(projectedX) < wallWidth/2 && Math.abs(projectedY) < wallHeight/2) {
+          // 计算光强度（基于焦散密度）
+          const distanceFromCenter = Math.sqrt(projectedX * projectedX + projectedY * projectedY);
+          const focusIntensity = Math.exp(-distanceFromCenter / (wallWidth * 0.3));
+          const baseIntensity = 0.4 + focusIntensity * 0.6;
+          
+          points.push({
+            x: projectedX,
+            y: projectedY,
+            intensity: Math.min(baseIntensity * (0.7 + Math.random() * 0.6), 1.0)
+          });
+        }
+      }
+    }
+    
+    setPointCount(points.length);
+    console.log('焦散点生成:', {
+      总光线数: rayCount,
+      有效光点数: points.length,
+      透镜尺寸: { lensWidth, lensHeight },
+      墙面距离: distance,
+      光强: intensity
+    });
+    
+    // 调试：输出前几个光点的信息
+    if (points.length > 0) {
+      console.log('前3个光点:', points.slice(0, 3));
+    }
+    
+    // 绘制焦散点 - 精细化效果
+    points.forEach(point => {
       const canvasX = (point.x / wallWidth + 0.5) * canvas.width;
       const canvasY = (1 - (point.y / wallHeight + 0.5)) * canvas.height;
       
-      const gradient = ctx.createRadialGradient(canvasX, canvasY, 0, canvasX, canvasY, 12);
-      gradient.addColorStop(0, `rgba(255, 255, 0, ${point.intensity * intensity * 0.8})`);
-      gradient.addColorStop(0.5, `rgba(255, 200, 0, ${point.intensity * intensity * 0.4})`);
-      gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      // 减小光点尺寸以显示精细图案
+      const baseRadius = 2 + point.intensity * 4;
+      const coreRadius = 0.5 + point.intensity * 1.5;
       
-      ctx.fillStyle = gradient;
+      // 绘制主光晕（根据光源类型使用不同颜色）
+      const mainGradient = ctx.createRadialGradient(canvasX, canvasY, 0, canvasX, canvasY, baseRadius);
+      mainGradient.addColorStop(0, `rgba(255, 255, 255, ${Math.min(point.intensity * 0.9, 0.9)})`);
+      mainGradient.addColorStop(0.3, `rgba(${lightColor.r}, ${lightColor.g}, ${lightColor.b}, ${Math.min(point.intensity * 0.7, 0.7)})`);
+      mainGradient.addColorStop(0.7, `rgba(${Math.floor(lightColor.r * 0.8)}, ${Math.floor(lightColor.g * 0.8)}, ${Math.floor(lightColor.b * 0.8)}, ${Math.min(point.intensity * 0.4, 0.4)})`);
+      mainGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      
+      ctx.fillStyle = mainGradient;
       ctx.beginPath();
-      ctx.arc(canvasX, canvasY, 12, 0, Math.PI * 2);
+      ctx.arc(canvasX, canvasY, baseRadius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 绘制亮核（带有光源颜色的中心）
+      const coreGradient = ctx.createRadialGradient(canvasX, canvasY, 0, canvasX, canvasY, coreRadius);
+      coreGradient.addColorStop(0, `rgba(255, 255, 255, ${Math.min(point.intensity, 1.0)})`);
+      coreGradient.addColorStop(0.5, `rgba(${Math.floor((255 + lightColor.r) / 2)}, ${Math.floor((255 + lightColor.g) / 2)}, ${Math.floor((255 + lightColor.b) / 2)}, ${Math.min(point.intensity * 0.8, 0.8)})`);
+      coreGradient.addColorStop(1, `rgba(${lightColor.r}, ${lightColor.g}, ${lightColor.b}, ${Math.min(point.intensity * 0.3, 0.3)})`);
+      
+      ctx.fillStyle = coreGradient;
+      ctx.beginPath();
+      ctx.arc(canvasX, canvasY, coreRadius, 0, Math.PI * 2);
       ctx.fill();
     });
     
-    // 创建纹理
+    // 移除测试光点，依靠真实焦散效果
+    
+    // 创建纹理 - 按照官方文档设置
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;
-    textureRef.current = texture;
-  }, [causticPoints, intensity, lensWidth, lensHeight]);
+    texture.flipY = false;
+    texture.minFilter = THREE.LinearFilter;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    
+    setIsCalculating(false);
+    return texture;
+  }, [distance, intensity, lensWidth, lensHeight, lensRotation, resolution, refractiveIndex, focalLength, geometry, targetShape, isAutoRotating, lightSource]);
   
+  // 如果纹理创建失败，不渲染组件
+  if (!causticTexture) {
+    return null;
+  }
+
   return (
     <>
-      {/* 墙面 */}
-      <mesh 
-        ref={wallRef}
-        position={[0, 0, distance]}
-        receiveShadow
-      >
-        <planeGeometry args={[wallWidth / 10, wallHeight / 10]} />
-        <meshLambertMaterial 
-          map={textureRef.current}
-          transparent 
-          opacity={0.9}
+      {/* 焦散投影纹理层 - 稍微偏移避免z-fighting */}
+      <mesh position={[0, 0, distance - 0.1]} receiveShadow>
+        <planeGeometry args={[wallWidth, wallHeight]} />
+        <meshBasicMaterial 
+          map={causticTexture} 
+          transparent={true} 
+          opacity={1.0}
+          blending={THREE.AdditiveBlending}
+          side={THREE.DoubleSide}
         />
       </mesh>
       
-      {/* 环境光照 */}
-      <directionalLight
-        position={[0, 0, -distance/2]}
-        target-position={[0, 0, distance]}
-        intensity={intensity * 0.5}
-        color="#ffffff"
-      />
+
       
-      {/* 焦散光点 - 3D效果 */}
-      {causticPoints.slice(0, 50).map((point, i) => (
-        <pointLight
-          key={i}
-          position={[point.x / 10, point.y / 10, distance - 0.5]}
-          intensity={point.intensity * intensity * 0.3}
-          distance={2}
-          decay={2}
-          color="#ffffff"
-        />
-      ))}
-      
-      {/* 光源位置可视化 */}
-      <mesh position={[0, 0, -50]}>
-        <sphereGeometry args={[2, 16, 16]} />
-        <meshBasicMaterial color="#ffff00" emissive="#ffff00" emissiveIntensity={0.5} />
-      </mesh>
-      
-      {/* 光源标签 */}
-      <Html position={[0, 5, -50]}>
-        <div style={{
-          background: 'rgba(255,255,0,0.8)',
-          color: 'black',
-          padding: '2px 6px',
-          borderRadius: '3px',
-          fontSize: '10px',
-          whiteSpace: 'nowrap',
-          fontWeight: 'bold'
-        }}>
-          光源
-        </div>
-      </Html>
-      
-      {/* 墙面标签 */}
-      <Html position={[0, wallHeight/20 + 1, distance]}>
+      {/* 焦散效果标签 */}
+      <Html position={[0, wallHeight/2 + 10, distance]}>
         <div style={{
           background: 'rgba(0,0,0,0.7)',
           color: 'white',
-          padding: '4px 8px',
-          borderRadius: '4px',
-          fontSize: '12px',
-          whiteSpace: 'nowrap'
+          padding: '8px 16px',
+          borderRadius: '20px',
+          fontSize: '14px',
+          fontWeight: 'bold',
+          textAlign: 'center',
+          border: '2px solid rgba(255, 255, 255, 0.3)',
+          backdropFilter: 'blur(10px)',
+          whiteSpace: 'nowrap',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
         }}>
-          焦散投影墙面 ({distance}mm) - {causticPoints.length} 光点
+          {isCalculating && (
+            <div style={{
+              width: '16px',
+              height: '16px',
+              border: '2px solid rgba(255, 255, 255, 0.3)',
+              borderTop: '2px solid white',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }} />
+          )}
+          {isCalculating ? '正在计算焦散投影...' : `焦散投影效果 (${distance}mm) - ${pointCount} 光点`}
         </div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
       </Html>
     </>
   );
 };
 
-// 墙面组件 - 兼容旧版本
-const Wall: React.FC<{ show: boolean; distance: number; intensity: number; lensWidth: number; lensHeight: number }> = ({ show, distance, intensity, lensWidth, lensHeight }) => {
-  const { geometry, targetShape } = useProjectStore();
-  
-  return (
-    <CausticProjection
-      show={show}
-      distance={distance}
-      intensity={intensity}
-      lensWidth={lensWidth}
-      lensHeight={lensHeight}
-      geometry={geometry}
-      targetShape={targetShape || []}
-    />
-  );
-};
+// 墙面组件已移除 - 避免重复调用CausticProjection
 
 // WebGL错误处理组件
 const WebGLErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -716,7 +1071,8 @@ const WebGLErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children 
 };
 
 export const LensViewer: React.FC = () => {
-  const { geometry, isProcessing, currentImage, parameters } = useProjectStore();
+  const { geometry, isProcessing, currentImage, parameters, targetShape, setParameters } = useProjectStore();
+  const [lensRotation, setLensRotation] = useState(0);
   const [viewerSettings, setViewerSettings] = useState<ViewerSettings>({
     wireframe: false,
     showGrid: true,
@@ -730,25 +1086,16 @@ export const LensViewer: React.FC = () => {
     wallDistance: parameters.targetDistance || 200,
   });
 
-  // 监听参数变化，更新材料类型
+  // 监听参数变化，更新材料类型和墙面距离
   useEffect(() => {
-    if (parameters.material) {
-      setViewerSettings(prev => ({
-        ...prev,
-        materialType: parameters.material as any
-      }));
-    }
-  }, [parameters.material]);
+    setViewerSettings(prev => ({
+      ...prev,
+      materialType: parameters.material as any,
+      wallDistance: parameters.targetDistance || 200
+    }));
+  }, [parameters.material, parameters.targetDistance]);
 
-  // 监听目标距离变化，更新墙面距离
-  useEffect(() => {
-    if (parameters.targetDistance) {
-      setViewerSettings(prev => ({
-        ...prev,
-        wallDistance: parameters.targetDistance
-      }));
-    }
-  }, [parameters.targetDistance]);
+  // 重复的useEffect已移除，wallDistance更新已合并到上面的useEffect中
 
   return (
     <div style={{ height: '100%', position: 'relative' }}>
@@ -759,7 +1106,7 @@ export const LensViewer: React.FC = () => {
               <WebGLErrorBoundary>
                 <Canvas
                   style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
-                  camera={{ position: [0, 0, 100], fov: 50 }}
+                  camera={{ position: [0, 0, 300], fov: 50 }}
                   shadows
                   gl={{ 
                     antialias: true, 
@@ -777,7 +1124,7 @@ export const LensViewer: React.FC = () => {
                     }
                   }}
                 >
-                <LightingSetup intensity={viewerSettings.lightIntensity} />
+                <LightingSetup intensity={viewerSettings.lightIntensity} wallDistance={viewerSettings.wallDistance} />
                 {viewerSettings.showGrid && (
                   <Grid 
                     args={[200, 200]} 
@@ -794,23 +1141,50 @@ export const LensViewer: React.FC = () => {
                   />
                 )}
                 <AxesHelper show={viewerSettings.showAxes} />
-                <LensMesh settings={viewerSettings} />
-                {/* 简化的投影墙面 */}
+                <LensMesh settings={viewerSettings} onRotationChange={setLensRotation} />
+                
+                {/* 光源可视化 */}
+                <LightSourceVisualization lightSource={parameters.lightSource} />
+                
+                {/* 基础墙面 - 始终显示 */}
                 {viewerSettings.showWall && (
                   <>
                     <mesh position={[0, 0, viewerSettings.wallDistance]} receiveShadow>
-                      <planeGeometry args={[Math.max((parameters.lensWidth || 50) * 4, 200) / 10, Math.max((parameters.lensHeight || 50) * 4, 150) / 10]} />
-                      <meshLambertMaterial color="#e0e0e0" transparent opacity={0.9} />
+                      <planeGeometry args={[Math.max((parameters.lensWidth || 50) * 4, 200), Math.max((parameters.lensHeight || 50) * 4, 150)]} />
+                      <meshLambertMaterial 
+                        color={viewerSettings.showCaustics ? "#f8f8f8" : "#e0e0e0"} 
+                        transparent 
+                        opacity={viewerSettings.showCaustics ? 0.7 : 0.9} 
+                        side={THREE.DoubleSide} 
+                      />
                     </mesh>
                     
                     {/* 投影光源 */}
                     <directionalLight
                       position={[0, 0, -viewerSettings.wallDistance/2]}
-                      target-position={[0, 0, viewerSettings.wallDistance]}
                       intensity={0.4}
                       color="#ffffff"
                     />
                   </>
+                )}
+                
+                {/* 焦散投影效果 - 叠加在基础墙面上 */}
+                {viewerSettings.showWall && viewerSettings.showCaustics && (
+                  <CausticProjection
+                    show={true}
+                    distance={viewerSettings.wallDistance}
+                    intensity={viewerSettings.lightIntensity}
+                    lensWidth={parameters.lensWidth || 100}
+                    lensHeight={parameters.lensHeight || 100}
+                    geometry={geometry}
+                    targetShape={targetShape || []}
+                    resolution={parameters.resolution || 128}
+                    refractiveIndex={parameters.refractiveIndex || 1.49}
+                    focalLength={parameters.focalLength || 50}
+                    lensRotation={lensRotation}
+                    isAutoRotating={viewerSettings.autoRotate}
+                    lightSource={parameters.lightSource}
+                  />
                 )}
                 {/* 移除Environment组件避免HDR资源请求导致的网络问题 */}
                 {/* <Environment preset="sunset" background={false} /> */}
@@ -876,13 +1250,33 @@ export const LensViewer: React.FC = () => {
                         <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>距离: {viewerSettings.wallDistance}mm</div>
                         <Slider
                           min={5}
-                          max={50}
+                          max={500}
                           value={viewerSettings.wallDistance}
                           onChange={(value) => setViewerSettings(prev => ({ ...prev, wallDistance: value }))}
                           size="small"
                         />
                       </div>
                     )}
+                  </div>
+                  
+                  {/* 光源设置 */}
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 500, marginBottom: '8px' }}>光源类型</div>
+                    <Select
+                      size="small"
+                      value={parameters.lightSource.type}
+                      onChange={(value) => {
+                         const newLightSource = { ...parameters.lightSource, type: value };
+                         if (value === 'point') {
+                           newLightSource.position = { x: 0, y: 0, z: -50 };
+                         }
+                         setParameters({ lightSource: newLightSource });
+                       }}
+                      style={{ width: '100%', marginBottom: '8px' }}
+                    >
+                      <Select.Option value="parallel">平行光</Select.Option>
+                      <Select.Option value="point">点光源</Select.Option>
+                    </Select>
                   </div>
                   
                   {/* 光照强度 */}
@@ -925,6 +1319,14 @@ export const LensViewer: React.FC = () => {
                           size="small"
                           checked={viewerSettings.wireframe}
                           onChange={(checked) => setViewerSettings(prev => ({ ...prev, wireframe: checked }))}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px' }}>焦散投影</span>
+                        <Switch 
+                          size="small"
+                          checked={viewerSettings.showCaustics}
+                          onChange={(checked) => setViewerSettings(prev => ({ ...prev, showCaustics: checked }))}
                         />
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

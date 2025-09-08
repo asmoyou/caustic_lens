@@ -302,7 +302,9 @@ export class CausticEngine {
     }
 
     // 生成侧面（连接顶面和底面的边缘）
-    // 前边缘
+    console.log('Generating side faces for lens closure');
+    
+    // 前边缘 (i=0)
     for (let j = 0; j < resolution; j++) {
       const topA = j;
       const topB = j + 1;
@@ -316,7 +318,7 @@ export class CausticEngine {
       }
     }
     
-    // 后边缘
+    // 后边缘 (i=resolution)
     for (let j = 0; j < resolution; j++) {
       const topA = resolution * (resolution + 1) + j;
       const topB = topA + 1;
@@ -330,7 +332,7 @@ export class CausticEngine {
       }
     }
     
-    // 左边缘
+    // 左边缘 (j=0)
     for (let i = 0; i < resolution; i++) {
       const topA = i * (resolution + 1);
       const topB = (i + 1) * (resolution + 1);
@@ -344,7 +346,7 @@ export class CausticEngine {
       }
     }
     
-    // 右边缘
+    // 右边缘 (j=resolution)
     for (let i = 0; i < resolution; i++) {
       const topA = i * (resolution + 1) + resolution;
       const topB = (i + 1) * (resolution + 1) + resolution;
@@ -357,6 +359,8 @@ export class CausticEngine {
         faces.push([topB, bottomA, bottomB]);
       }
     }
+    
+    console.log('Side faces generated. Total faces:', faces.length);
 
     console.log('Generated faces count:', faces.length);
     console.log('Face generation completed successfully');
