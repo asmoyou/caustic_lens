@@ -158,15 +158,83 @@ export class ImageProcessor {
   }
 
   private extractTargetShape(contours: Contour[]): number[][] {
-    if (contours.length === 0) return [];
+    // 使用512x512分辨率匹配Julia实现
+    const resolution = 512;
     
-    // 选择最大的轮廓作为目标形状
-    const largestContour = contours.reduce((max, current) => 
-      current.area > max.area ? current : max
-    );
-
-    // 将轮廓点转换为规范化的形状数据
-    const shape: number[][] = largestContour.points.map(point => [point.x, point.y]);
-    return shape;
+    // 直接从原始图像创建灰度强度矩阵（匹配Julia实现）
+    const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+    const grayscale = this.toGrayscaleMatrix(imageData, resolution);
+    
+    // 应用Julia中的能量归一化
+    const normalizedImage = this.normalizeImageEnergy(grayscale, resolution);
+    
+    return normalizedImage;
+  }
+  
+  private toGrayscaleMatrix(imageData: ImageData, targetResolution: number): number[][] {
+    const { width, height, data } = imageData;
+    const matrix: number[][] = [];
+    
+    // 缩放到目标分辨率
+    const scaleX = width / targetResolution;
+    const scaleY = height / targetResolution;
+    
+    for (let y = 0; y < targetResolution; y++) {
+      matrix[y] = [];
+      for (let x = 0; x < targetResolution; x++) {
+        const srcX = Math.floor(x * scaleX);
+        const srcY = Math.floor(y * scaleY);
+        const i = (srcY * width + srcX) * 4;
+        
+        // 转换为灰度（匹配Julia的Gray转换）
+        const gray = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) / 255.0;
+        matrix[y][x] = gray;
+      }
+    }
+    
+    return matrix;
+  }
+  
+  private normalizeImageEnergy(image: number[][], resolution: number): number[][] {
+    // 计算图像总和
+    let imageSum = 0;
+    for (let y = 0; y < resolution; y++) {
+      for (let x = 0; x < resolution; x++) {
+        imageSum += image[y][x];
+      }
+    }
+    
+    // 网格总面积（匹配Julia实现）
+    const meshSum = resolution * resolution;
+    
+    // 计算增强比例（匹配Julia的boost_ratio）
+    const boostRatio = imageSum > 0 ? meshSum / imageSum : 1.0;
+    
+    // 应用增强比例
+    const normalizedImage: number[][] = [];
+    for (let y = 0; y < resolution; y++) {
+      normalizedImage[y] = [];
+      for (let x = 0; x < resolution; x++) {
+        normalizedImage[y][x] = image[y][x] * boostRatio;
+      }
+    }
+    
+    console.log(`图像归一化: 原始总和=${imageSum.toFixed(4)}, 网格总和=${meshSum}, 增强比例=${boostRatio.toFixed(4)}`);
+    
+    return normalizedImage;
+  }
+  
+  private fillContourInterior(shape: number[][], resolution: number): void {
+    // 使用扫描线算法填充轮廓内部
+    for (let y = 0; y < resolution; y++) {
+      let inside = false;
+      for (let x = 0; x < resolution; x++) {
+        if (shape[y][x] === 1.0) {
+          inside = !inside;
+        } else if (inside) {
+          shape[y][x] = 1.0;
+        }
+      }
+    }
   }
 }

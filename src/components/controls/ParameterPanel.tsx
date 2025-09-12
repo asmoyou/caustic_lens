@@ -25,22 +25,26 @@ export const ParameterPanel: React.FC = () => {
     const defaultParams: CausticParameters = {
       lensWidth: 100,
       lensHeight: 100,
-      focalLength: 50,
-      resolution: 128,
+      focalLength: 200,  // Julia默认0.2米 = 200mm
+      resolution: 512,  // Julia默认grid_definition = 512
       thickness: 10,
       material: 'acrylic',
       refractiveIndex: 1.49,
-      targetDistance: 200,
+      targetDistance: 100,  // Julia默认artifactSize = 0.1米 = 100mm
       lightSource: {
         type: 'parallel',
         intensity: 1.0,
-        wavelength: 550,
-        position: { x: 0, y: 0, z: -100 }
+        wavelength: 633,
+        position: { x: 0, y: 0, z: 10 }
       },
       optimization: {
-        iterations: 100,
-        tolerance: 0.001,
-        algorithm: 'gradient_descent'
+        iterations: 4,  // 默认4次迭代，与Julia实现一致
+        tolerance: 0.00001,  // Julia默认收敛阈值
+        algorithm: 'sor',  // SOR算法
+        useGPUAcceleration: true,
+        photonMapSize: 512,  // 与resolution保持一致
+        regularizationWeight: 1.99,  // Julia默认ω = 1.99
+        learningRate: 0.1
       }
     };
     setParameters(defaultParams);
@@ -72,7 +76,7 @@ export const ParameterPanel: React.FC = () => {
           label={
             <Space>
               <Text>宽度 (mm)</Text>
-              <Tooltip title="透镜的水平宽度">
+              <Tooltip title="透镜的水平宽度。建议范围：50-150mm，过小会影响成像效果，过大会增加计算复杂度">
                 <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
               </Tooltip>
             </Space>
@@ -102,7 +106,7 @@ export const ParameterPanel: React.FC = () => {
           label={
             <Space>
               <Text>高度 (mm)</Text>
-              <Tooltip title="透镜的垂直高度">
+              <Tooltip title="透镜的垂直高度。建议范围：50-150mm，通常与宽度保持一致以获得最佳效果">
                 <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
               </Tooltip>
             </Space>
@@ -132,7 +136,7 @@ export const ParameterPanel: React.FC = () => {
           label={
             <Space>
               <Text>厚度 (mm)</Text>
-              <Tooltip title="透镜的最大厚度">
+              <Tooltip title="透镜的最大厚度。影响透镜的制造难度和光学性能。建议范围：5-15mm">
                 <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
               </Tooltip>
             </Space>
@@ -298,7 +302,7 @@ export const ParameterPanel: React.FC = () => {
           label={
             <Space>
               <Text>网格分辨率</Text>
-              <Tooltip title="计算网格的密度，越高越精确但计算越慢">
+              <Tooltip title="计算网格的密度，Julia默认512x512">
                 <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
               </Tooltip>
             </Space>
@@ -309,18 +313,19 @@ export const ParameterPanel: React.FC = () => {
             onChange={(value) => handleParameterChange('resolution', value)}
             size="small"
           >
-            <Option value={32}>低 (32x32)</Option>
-            <Option value={64}>中 (64x64)</Option>
-            <Option value={128}>高 (128x128)</Option>
-            <Option value={256}>超高 (256x256)</Option>
+            <Option value={64}>低 (64x64)</Option>
+            <Option value={128}>中 (128x128)</Option>
+            <Option value={256}>高 (256x256)</Option>
+            <Option value={512}>标准 (512x512)</Option>
+            <Option value={1024}>极高 (1024x1024)</Option>
           </Select>
         </Form.Item>
 
         <Form.Item 
           label={
             <Space>
-              <Text>优化迭代次数</Text>
-              <Tooltip title="算法优化的迭代次数">
+              <Text>最大迭代次数</Text>
+              <Tooltip title="算法的最大迭代次数。注意：这是外层迭代次数，每次迭代内部还会进行SOR求解。建议值：4-10次">
                 <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
               </Tooltip>
             </Space>
@@ -328,8 +333,8 @@ export const ParameterPanel: React.FC = () => {
         >
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <Slider
-              min={10}
-              max={500}
+              min={1}
+              max={20}
               value={parameters.optimization.iterations}
               onChange={(value) => handleParameterChange('optimization', {
                 ...parameters.optimization,
@@ -338,15 +343,15 @@ export const ParameterPanel: React.FC = () => {
               style={{ flex: 1 }}
             />
             <InputNumber
-              min={10}
-              max={500}
+              min={1}
+              max={20}
               value={parameters.optimization.iterations}
               onChange={(value) => handleParameterChange('optimization', {
                 ...parameters.optimization,
-                iterations: value || 100
+                iterations: value || 4
               })}
               size="small"
-              style={{ width: '70px' }}
+              style={{ width: '80px' }}
             />
           </div>
         </Form.Item>
@@ -355,7 +360,7 @@ export const ParameterPanel: React.FC = () => {
           label={
             <Space>
               <Text>收敛容差</Text>
-              <Tooltip title="算法收敛的精度要求">
+              <Tooltip title="SOR算法收敛阈值。较小的值会得到更精确的结果，但计算时间更长。Julia默认0.00001">
                 <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
               </Tooltip>
             </Space>
@@ -372,9 +377,158 @@ export const ParameterPanel: React.FC = () => {
             <Option value={0.01}>粗糙 (0.01)</Option>
             <Option value={0.001}>中等 (0.001)</Option>
             <Option value={0.0001}>精细 (0.0001)</Option>
-            <Option value={0.00001}>超精细 (0.00001)</Option>
+            <Option value={0.00001}>标准 (0.00001)</Option>
+            <Option value={0.000001}>超精细 (0.000001)</Option>
           </Select>
         </Form.Item>
+
+        <Form.Item 
+          label={
+            <Space>
+              <Text>算法类型</Text>
+              <Tooltip title="选择焦散透镜生成算法。SOR（逐次超松弛法）是推荐算法，收敛速度快且稳定">
+                <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
+              </Tooltip>
+            </Space>
+          }
+        >
+          <Select
+            value={parameters.optimization.algorithm}
+            onChange={(value) => handleParameterChange('optimization', {
+              ...parameters.optimization,
+              algorithm: value
+            })}
+            size="small"
+          >
+            <Option value="sor">逐次超松弛法 (SOR)</Option>
+            <Option value="gradient_descent">梯度下降法</Option>
+          </Select>
+        </Form.Item>
+
+        <Form.Item 
+          label={
+            <Space>
+              <Text>GPU加速</Text>
+              <Tooltip title="使用WebGL计算着色器加速计算">
+                <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
+              </Tooltip>
+            </Space>
+          }
+        >
+          <Switch
+            checked={parameters.optimization.useGPUAcceleration ?? true}
+            onChange={(checked) => handleParameterChange('optimization', {
+              ...parameters.optimization,
+              useGPUAcceleration: checked
+            })}
+            size="small"
+          />
+          <Text style={{ marginLeft: '8px', fontSize: '12px', color: '#666' }}>
+            {parameters.optimization.useGPUAcceleration ?? true ? '已启用' : '已禁用'}
+          </Text>
+        </Form.Item>
+
+        <Form.Item 
+          label={
+            <Space>
+              <Text>光子图大小</Text>
+              <Tooltip title="光线追踪计算的采样密度。高值提供更精确的结果但计算时间更长。推荐：中等或高等级">
+                <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
+              </Tooltip>
+            </Space>
+          }
+        >
+          <Select
+            value={parameters.optimization.photonMapSize || 262144}
+            onChange={(value) => handleParameterChange('optimization', {
+              ...parameters.optimization,
+              photonMapSize: value
+            })}
+            size="small"
+          >
+            <Option value={16384}>低 (128x128)</Option>
+            <Option value={65536}>中 (256x256)</Option>
+            <Option value={262144}>高 (512x512)</Option>
+            <Option value={1048576}>超高 (1024x1024)</Option>
+          </Select>
+        </Form.Item>
+
+        <Form.Item 
+          label={
+            <Space>
+              <Text>松弛因子 (ω)</Text>
+              <Tooltip title="SOR算法的松弛因子。控制收敛速度，1.0为标准松弛，1.0-2.0为超松弛。Julia推荐值：1.99">
+                <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
+              </Tooltip>
+            </Space>
+          }
+        >
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Slider
+              min={1.0}
+              max={2.0}
+              step={0.01}
+              value={parameters.optimization.relaxationFactor || 1.99}
+              onChange={(value) => handleParameterChange('optimization', {
+                ...parameters.optimization,
+                relaxationFactor: value
+              })}
+              style={{ flex: 1 }}
+            />
+            <InputNumber
+              min={1.0}
+              max={2.0}
+              step={0.01}
+              value={parameters.optimization.relaxationFactor || 1.99}
+              onChange={(value) => handleParameterChange('optimization', {
+                ...parameters.optimization,
+                relaxationFactor: value || 1.99
+              })}
+              size="small"
+              style={{ width: '80px' }}
+            />
+          </div>
+        </Form.Item>
+
+        {/* 学习率参数仅在梯度下降算法时显示 */}
+        {parameters.optimization.algorithm === 'gradient_descent' && (
+          <Form.Item 
+            label={
+              <Space>
+                <Text>学习率</Text>
+                <Tooltip title="梯度下降算法的学习率">
+                  <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
+                </Tooltip>
+              </Space>
+            }
+          >
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <Slider
+                min={0.001}
+                max={0.5}
+                step={0.001}
+                value={parameters.optimization.learningRate || 0.1}
+                onChange={(value) => handleParameterChange('optimization', {
+                  ...parameters.optimization,
+                  learningRate: value
+                })}
+                style={{ flex: 1 }}
+              />
+              <InputNumber
+                min={0.001}
+                max={0.5}
+                step={0.001}
+                value={parameters.optimization.learningRate || 0.1}
+                onChange={(value) => handleParameterChange('optimization', {
+                  ...parameters.optimization,
+                  learningRate: value || 0.1
+                })}
+                size="small"
+                style={{ width: '80px' }}
+              />
+            </div>
+          </Form.Item>
+        )}
 
         <Divider style={{ margin: '16px 0' }} />
 
@@ -475,6 +629,71 @@ export const ParameterPanel: React.FC = () => {
               size="small"
               style={{ width: '70px' }}
             />
+          </div>
+        </Form.Item>
+
+        <Form.Item 
+          label={
+            <Space>
+              <Text>光源位置</Text>
+              <Tooltip title="光源在3D空间中的位置坐标">
+                <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
+              </Tooltip>
+            </Space>
+          }
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+            <div>
+              <Text style={{ fontSize: '12px', color: '#666' }}>X (mm)</Text>
+              <InputNumber
+                min={-500}
+                max={500}
+                value={parameters.lightSource.position.x}
+                onChange={(value) => handleParameterChange('lightSource', {
+                  ...parameters.lightSource,
+                  position: {
+                    ...parameters.lightSource.position,
+                    x: value || 0
+                  }
+                })}
+                size="small"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div>
+              <Text style={{ fontSize: '12px', color: '#666' }}>Y (mm)</Text>
+              <InputNumber
+                min={-500}
+                max={500}
+                value={parameters.lightSource.position.y}
+                onChange={(value) => handleParameterChange('lightSource', {
+                  ...parameters.lightSource,
+                  position: {
+                    ...parameters.lightSource.position,
+                    y: value || 0
+                  }
+                })}
+                size="small"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div>
+              <Text style={{ fontSize: '12px', color: '#666' }}>Z (mm)</Text>
+              <InputNumber
+                min={-1000}
+                max={0}
+                value={parameters.lightSource.position.z}
+                onChange={(value) => handleParameterChange('lightSource', {
+                  ...parameters.lightSource,
+                  position: {
+                    ...parameters.lightSource.position,
+                    z: value || -300
+                  }
+                })}
+                size="small"
+                style={{ width: '100%' }}
+              />
+            </div>
           </div>
         </Form.Item>
 

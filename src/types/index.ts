@@ -1,9 +1,11 @@
 // TypeScript 类型定义
 export interface ImageData {
-  file: File;
+  file?: File;
   url: string;
-  width: number;
-  height: number;
+  name: string;
+  width?: number;
+  height?: number;
+  data?: number[][];
   processedData?: ImageProcessingResult;
 }
 
@@ -61,9 +63,15 @@ export interface CausticParameters {
     direction?: { x: number; y: number; z: number };
   };
   optimization: {
-    iterations: number;
-    tolerance: number;
+    iterations?: number;
+    tolerance?: number;
+    maxIterations?: number;
+    convergenceTolerance?: number;
     algorithm: string;
+    useGPUAcceleration?: boolean;
+    photonMapSize?: number;
+    relaxationFactor?: number;  // SOR算法的松弛因子
+    learningRate?: number;
   };
 }
 

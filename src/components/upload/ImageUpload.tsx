@@ -1,18 +1,48 @@
-import React, { useState } from 'react';
-import { Upload, Button, Card, Typography, Progress, message } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Upload, Button, Card, Typography, Progress, message, Row, Col } from 'antd';
 import { UploadOutlined, DeleteOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { UploadFile, UploadProps } from 'antd';
 import { useProjectStore } from '../../stores/projectStore';
 import { ImageProcessor } from '../../algorithms/imageProcessing';
 import { CausticEngine } from '../../algorithms/causticEngine';
 import { ImageData } from '../../types';
+import { EnhancedProgressDisplay } from '../progress/EnhancedProgressDisplay';
 
 const { Text } = Typography;
 
 export const ImageUpload: React.FC = () => {
-  const { currentImage, setImage, setGeometry, setTargetShape, setProcessing, setError, parameters, isProcessing, geometry } = useProjectStore();
+  const { 
+    currentImage, 
+    setImage, 
+    setGeometry, 
+    setTargetShape, 
+    setProcessing, 
+    setError, 
+    parameters, 
+    isProcessing, 
+    geometry, 
+    progressDetails,
+    setProgressDetails,
+    iterationImages,
+    addIterationImage,
+    clearIterationImages
+  } = useProjectStore();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [progress, setProgress] = useState(0);
+
+  // 监听迭代图像生成事件
+  useEffect(() => {
+    const handleIterationImage = (event: CustomEvent) => {
+      const { imageData } = event.detail;
+      addIterationImage(imageData);
+    };
+
+    window.addEventListener('iterationImageGenerated', handleIterationImage as EventListener);
+    
+    return () => {
+      window.removeEventListener('iterationImageGenerated', handleIterationImage as EventListener);
+    };
+  }, [addIterationImage]);
 
   const handleUpload: UploadProps['customRequest'] = async (options) => {
     const { file, onSuccess, onError } = options;
@@ -48,35 +78,101 @@ export const ImageUpload: React.FC = () => {
       setProcessing(true);
       setError(null);
       setProgress(0);
+      clearIterationImages(); // 清空之前的迭代图像
       console.log('开始处理图像...');
 
       // 处理图像
       const processor = new ImageProcessor();
       const processingResult = await processor.processImage(currentImage);
       console.log('图像处理完成:', processingResult);
-      setProgress(50);
+      setProgress(30);
 
       // 保存目标形状数据
       setTargetShape(processingResult.targetShape);
 
-      // 生成透镜几何
+      // 生成透镜几何 - 添加进度回调
       const causticEngine = new CausticEngine(parameters);
       console.log('开始生成透镜几何...');
-      const geometry = await causticEngine.generateLensGeometry(processingResult.targetShape);
+      
+      const startTime = Date.now();
+      let lastProgressTime = startTime;
+      
+      const geometry = await causticEngine.generateLensGeometry(
+        processingResult.targetShape,
+        (algorithmProgress: number, status: string) => {
+          // 限制算法进度在0-100范围内
+          const clampedProgress = Math.min(Math.max(algorithmProgress, 0), 100);
+          
+          // 将算法进度映射到总进度的30%-95%区间
+          const totalProgress = 30 + (clampedProgress / 100) * 65;
+          setProgress(Math.round(totalProgress));
+          
+          // 计算时间估算
+          const currentTime = Date.now();
+          const elapsed = currentTime - startTime; // 毫秒
+          const progressRate = clampedProgress / 100;
+          
+          let timeEstimate = '';
+          if (progressRate > 0.05) { // 至少5%进度才估算时间
+            const estimatedTotal = elapsed / progressRate;
+            const remaining = estimatedTotal - elapsed;
+            
+            if (remaining > 60000) {
+              timeEstimate = ` (预计还需 ${Math.ceil(remaining / 60000)} 分钟)`;
+            } else if (remaining > 10000) {
+              timeEstimate = ` (预计还需 ${Math.ceil(remaining / 1000)} 秒)`;
+            }
+          }
+          
+          // 更新进度详情 - 修复迭代显示逻辑
+          const currentIteration = Math.min(Math.floor(clampedProgress / 25) + 1, 4); // 确保不超过4
+          setProgressDetails({
+            iteration: currentIteration,
+            totalIterations: 4,
+            phase: status,
+            elapsedTime: elapsed,
+            estimatedTimeRemaining: progressRate > 0.05 ? elapsed / progressRate - elapsed : undefined,
+            converged: clampedProgress >= 100
+          });
+          
+          console.log(`算法进度: ${algorithmProgress}% - ${status}${timeEstimate}`);
+          lastProgressTime = currentTime;
+        },
+        {
+          useGPUAcceleration: parameters.optimization?.useGPUAcceleration ?? true,
+          photonMapSize: parameters.optimization?.photonMapSize || Math.min(parameters.resolution || 128, 256)
+        }
+      );
+      
       console.log('透镜几何生成完成:', geometry);
-      setProgress(75);
+      setProgress(95);
 
       setGeometry(geometry);
       setProgress(100);
+      
+      // 确保最终状态显示正确的时间信息
+      const finalElapsed = Date.now() - startTime;
+      setProgressDetails(prev => ({
+        ...prev,
+        iteration: 4,
+        totalIterations: 4,
+        phase: '算法完成',
+        elapsedTime: finalElapsed,
+        estimatedTimeRemaining: 0,
+        converged: true
+      }));
 
       message.success('焦散透镜计算完成！');
     } catch (error) {
       console.error('Image processing failed:', error);
       setError(error instanceof Error ? error.message : '图片处理失败');
       message.error('图片处理失败，请重试');
+      // 只有在出错时才重置进度
+      setProgress(0);
+      setProgressDetails(undefined);
     } finally {
       setProcessing(false);
-      setTimeout(() => setProgress(0), 1000);
+      // 移除自动重置进度的逻辑，让成功完成的进度保持显示
     }
   };
 
@@ -158,15 +254,42 @@ export const ImageUpload: React.FC = () => {
           </div>
         )}
 
-        {progress > 0 && (
-          <div>
-            <Text className="text-sm text-gray-600">处理进度</Text>
-            <Progress 
-              percent={progress} 
-              size="small" 
-              status={progress === 100 ? 'success' : 'active'}
-            />
-          </div>
+        {/* 使用增强的进度显示组件 */}
+        <EnhancedProgressDisplay
+          progress={progress}
+          progressDetails={progressDetails}
+          title="透镜生成进度"
+          showPerformanceMetrics={true}
+        />
+
+        {/* 迭代过程图像显示 */}
+        {iterationImages.length > 0 && (
+          <Card title="迭代过程可视化" size="small" className="mt-4">
+            <div className="text-sm text-gray-600 mb-3">
+              共生成 {iterationImages.length} 张迭代图像
+            </div>
+            <Row gutter={[8, 8]}>
+              {iterationImages.map((imageData, index) => (
+                <Col key={index} xs={12} sm={8} md={6}>
+                  <div className="border border-gray-200 rounded p-2">
+                    <img 
+                      src={imageData} 
+                      alt={`迭代 ${index + 1}`}
+                      style={{
+                        width: '100%',
+                        height: 'auto',
+                        maxHeight: '120px',
+                        objectFit: 'contain'
+                      }}
+                    />
+                    <div className="text-xs text-center mt-1 text-gray-500">
+                      迭代 {index + 1}
+                    </div>
+                  </div>
+                </Col>
+              ))}
+            </Row>
+          </Card>
         )}
 
         {fileList.length > 0 && (

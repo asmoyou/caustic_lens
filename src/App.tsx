@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Layout, Typography, Space, Card, Row, Col, Tabs, Button } from 'antd';
 import { SettingOutlined, UploadOutlined, EyeOutlined, FileTextOutlined, DownloadOutlined } from '@ant-design/icons';
 import { LensViewer } from './components/viewer/LensViewer';
+import { CausticsRenderArea } from './components/viewer/CausticsRenderArea';
 import { ImageUpload } from './components/upload/ImageUpload';
 import { ParameterPanel } from './components/controls/ParameterPanel';
 import { ExportPanel } from './components/export/ExportPanel';
@@ -147,50 +148,52 @@ function App() {
             </Button>
           </div>
           
-          <Row gutter={16} style={{ height: 'calc(100% - 56px)' }}>
-            <Col span={24}>
-              <Card 
-                title={
-                  <span style={{ fontSize: '16px', fontWeight: 600, color: '#333' }}>
-                    <EyeOutlined style={{ marginRight: '8px', color: '#667eea' }} />
-                    3D 透镜预览
-                  </span>
-                }
-                style={{ 
-                  height: 'calc(100vh - 180px)',
-                  borderRadius: '12px',
-                  border: 'none',
-                  background: 'rgba(255,255,255,0.95)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
-                }}
-                headStyle={{
+          <Space direction="vertical" style={{ width: '100%' }} size="large">
+            {/* 3D 透镜预览区域 */}
+            <Card 
+              title={
+                <span style={{ fontSize: '16px', fontWeight: 600, color: '#333' }}>
+                  <EyeOutlined style={{ marginRight: '8px', color: '#667eea' }} />
+                  3D 透镜预览
+                </span>
+              }
+              style={{ 
+                height: '600px',
+                borderRadius: '12px',
+                border: 'none',
+                background: 'rgba(255,255,255,0.95)',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+              }}
+              styles={{
+                header: {
                   borderBottom: '1px solid #f0f0f0',
                   borderRadius: '12px 12px 0 0',
                   background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%)'
-                }}
-                styles={{
-                  body: { 
-                    height: 'calc(100% - 57px)', 
-                    padding: 0,
-                    background: '#000'
-                  }
-                }}
-                extra={
-                  geometry && (
-                    <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                      顶点: {geometry.vertices.length} | 面片: {geometry.faces.length}
-                    </Typography.Text>
-                  )
+                },
+                body: { 
+                  height: 'calc(100% - 57px)', 
+                  padding: 0,
+                  background: '#000'
                 }
-              >
-                <LensViewer 
-                  geometry={geometry}
-                  image={currentImage}
-                />
-              </Card>
-            </Col>
-          </Row>
+              }}
+              extra={
+                geometry && (
+                  <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                    顶点: {geometry.vertices.length} | 面片: {geometry.faces.length}
+                  </Typography.Text>
+                )
+              }
+            >
+              <LensViewer 
+                geometry={geometry}
+                image={currentImage}
+              />
+            </Card>
+            
+            {/* 焦散图案渲染区域 */}
+            <CausticsRenderArea />
+          </Space>
         </Content>
       </Layout>
       
