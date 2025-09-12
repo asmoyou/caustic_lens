@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # 焦散透镜设计工具前端应用
+  caustic-lens:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: caustic-lens-app
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - caustic-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.caustic-lens.rule=Host(`localhost`)"
+      - "traefik.http.services.caustic-lens.loadbalancer.server.port=80"
+
+  # 可选：Nginx 反向代理（如果需要更复杂的路由）
+  # nginx-proxy:
+  #   image: nginx:alpine
+  #   container_name: caustic-lens-proxy
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx-proxy.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - caustic-lens
+  #   restart: unless-stopped
+  #   networks:
+  #     - caustic-network
+
+  # 可选：Redis 缓存（如果需要缓存功能）
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: caustic-lens-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis-data:/data
+  #   restart: unless-stopped
+  #   networks:
+  #     - caustic-network
+  #   command: redis-server --appendonly yes
+
+networks:
+  caustic-network:
+    driver: bridge
+    name: caustic-lens-network
+
+# 可选：数据卷（如果需要持久化存储）
+# volumes:
+#   redis-data:
+#     driver: local
+#   app-data:
+#     driver: local

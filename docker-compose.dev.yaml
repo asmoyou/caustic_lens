@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # 开发环境的焦散透镜设计工具
+  caustic-lens-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: development
+    container_name: caustic-lens-dev
+    ports:
+      - "5173:5173"  # Vite 默认端口
+    environment:
+      - NODE_ENV=development
+      - VITE_HOST=0.0.0.0
+    volumes:
+      # 挂载源代码以支持热重载
+      - .:/app
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - caustic-dev-network
+    stdin_open: true
+    tty: true
+    command: npm run dev
+
+  # 可选：开发工具容器
+  # dev-tools:
+  #   image: node:18-alpine
+  #   container_name: caustic-lens-tools
+  #   working_dir: /app
+  #   volumes:
+  #     - .:/app
+  #   networks:
+  #     - caustic-dev-network
+  #   command: tail -f /dev/null
+
+networks:
+  caustic-dev-network:
+    driver: bridge
+    name: caustic-lens-dev-network
