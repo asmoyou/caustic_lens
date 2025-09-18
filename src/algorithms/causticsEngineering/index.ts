@@ -671,9 +671,12 @@ export class CausticsEngineeringAlgorithm {
     
     console.log(metersPerPixel);
     
-    // 折射率（与Julia版本一致）
-    const n1 = 1.49; // 透镜材料
+    // 折射率 - 从参数配置中获取
+    const refractiveIndex = this.parameters?.refractiveIndex || 1.49;
+    const n1 = refractiveIndex; // 透镜材料
     const n2 = 1.0;  // 空气
+    
+    console.log(`使用折射率: ${n1}`);
     
     // 计算法向量场
     const Nx: number[][] = [];
@@ -834,8 +837,8 @@ export class CausticsEngineeringAlgorithm {
     // 将高度应用到网格节点 - 修复：使用正确的高度计算
     // Julia版本: mesh.nodeArray[x, y].z = heights[x, y] * heightScale + heightOffset
     // 调整比例尺：减小heightScale和heightOffset以获得更合理的透镜高度
-    const heightScale = 0.1; // 减小比例尺
-    const heightOffset = 1.0; // 减小基础偏移
+    const heightScale = 1.0; // 减小比例尺
+    const heightOffset = 10.0; // 减小基础偏移
     
     for (let i = 0; i < width; i++) {
       for (let j = 0; j < height; j++) {
@@ -898,7 +901,7 @@ export class CausticsEngineeringAlgorithm {
     // 调整offset以匹配新的高度比例尺
     const offset = 10; // 减小偏移量以匹配调整后的高度比例
     
-    console.log(`透镜偏移量: ${offset}`);
+    console.log(`透镜偏移量: ${offset}m (配置厚度: ${this.parameters.thickness}mm)`);
     console.log(`Specs: ${width}  ${height}  ${width * height * 2}  ${width * 2 + (height - 2) * 2}  ${(width - 1) * (height - 1) * 2} ${(width - 1) * (height - 1) * 4 + (width * 2 + (height - 2) * 2) * 2}`);
     
     // 构建底部和顶部表面
@@ -1037,8 +1040,8 @@ export class CausticsEngineeringAlgorithm {
   private meshToLensGeometry(mesh: Mesh): LensGeometry {
     console.log(`转换网格到透镜几何体 - 节点数: ${mesh.nodes.length}, 三角形数: ${mesh.triangles.length}`);
     
-    const lensWidth = this.parameters.lensWidth || 0.1;
-    const lensHeight = this.parameters.lensHeight || 0.1;
+    const lensWidth = 100;  //固定尺寸100mm
+    const lensHeight = 100; //固定尺寸100mm
     
     const scaleX = lensWidth / mesh.width;
     const scaleY = lensHeight / mesh.height;
@@ -1122,9 +1125,13 @@ export class CausticsEngineeringAlgorithm {
    * 生成UV坐标
    */
   private generateUVCoordinates(vertices: Point3D[]): Point2D[] {
+
+    const lensWidth = 100;  //固定尺寸100mm
+    const lensHeight = 100; //固定尺寸100mm
+
     return vertices.map(vertex => ({
-      x: (vertex.x + this.parameters.lensWidth / 2) / this.parameters.lensWidth,
-      y: (vertex.y + this.parameters.lensHeight / 2) / this.parameters.lensHeight
+      x: (vertex.x + lensWidth / 2) / lensWidth,
+      y: (vertex.y + lensHeight / 2) / lensHeight
     }));
   }
 }

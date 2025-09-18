@@ -7,9 +7,6 @@ export interface ReportData {
   image: ImageData;
   geometry: LensGeometry;
   parameters: {
-    lensWidth: number;
-    lensHeight: number;
-    thickness: number;
     focalLength: number;
     refractiveIndex: number;
     resolution: number;
@@ -257,15 +254,15 @@ export class HTMLReportGenerator {
             <div class="card">
                 <div class="param-grid">
                     <div class="param-item">
-                        <div class="param-value">${(parameters.lensWidth || 0).toFixed(1)}</div>
+                        <div class="param-value">100.0</div>
                         <div class="param-label">透镜宽度 (mm)</div>
                     </div>
                     <div class="param-item">
-                        <div class="param-value">${(parameters.lensHeight || 0).toFixed(1)}</div>
+                        <div class="param-value">100.0</div>
                         <div class="param-label">透镜高度 (mm)</div>
                     </div>
                     <div class="param-item">
-                        <div class="param-value">${(parameters.thickness || 0).toFixed(2)}</div>
+                        <div class="param-value">5.0</div>
                         <div class="param-label">厚度 (mm)</div>
                     </div>
                     <div class="param-item">

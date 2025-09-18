@@ -7,8 +7,6 @@ interface CausticsRenderResult {
   timestamp: number;
   imageData: string; // base64 图像数据
   parameters: {
-    lensWidth: number;
-    lensHeight: number;
     focalLength: number;
     targetDistance: number;
     material: string;
@@ -60,21 +58,17 @@ interface ProjectStore extends ProjectState {
 }
 
 const defaultParameters: CausticParameters = {
-  // 透镜尺寸 (基于Julia实现: artifactSize = 0.1m = 100mm)
-  lensWidth: 100,   // mm (0.1m)
-  lensHeight: 100,  // mm (0.1m)
   focalLength: 200, // mm (0.2m, 基于Julia实现)
   resolution: 512,  // 网格分辨率，匹配Julia实现的512x512
-  thickness: 10,
   material: 'acrylic',
   refractiveIndex: 1.49, // 典型的光学玻璃
-  targetDistance: 200,  // mm，匹配焦距设置
+  targetDistance: 1000,  // mm，调整为1000mm
   lightSource: {
     type: 'parallel',
     intensity: 1.0,
     wavelength: 550,  // nm (绿光)
     color: { r: 0.2, g: 1.0, b: 0.2 }, // 绿光对应的RGB颜色
-    position: { x: 0, y: 0, z: -300 }, // mm (光源在透镜前方)
+    position: { x: 0, y: 0, z: 150 }, // mm (光源在透镜前方，距离透镜150mm)
     width: 50,  // 面光源默认宽度
     height: 50, // 面光源默认高度
     direction: { x: 0, y: 0, z: 1 } // 默认向前方向

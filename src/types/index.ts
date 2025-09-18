@@ -40,11 +40,8 @@ export interface LensGeometry {
 }
 
 export interface CausticParameters {
-  lensWidth: number;
-  lensHeight: number;
   focalLength: number;
   resolution: number;
-  thickness: number;
   material: string;
   refractiveIndex: number;
   targetDistance: number;

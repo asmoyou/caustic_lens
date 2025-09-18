@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Layout, Typography, Space, Card, Row, Col, Tabs, Button } from 'antd';
-import { SettingOutlined, UploadOutlined, EyeOutlined, FileTextOutlined, DownloadOutlined } from '@ant-design/icons';
+import { SettingOutlined, UploadOutlined, EyeOutlined, FileTextOutlined, DownloadOutlined, BugOutlined } from '@ant-design/icons';
 import { LensViewer } from './components/viewer/LensViewer';
 import { CausticsRenderArea } from './components/viewer/CausticsRenderArea';
 import { ImageUpload } from './components/upload/ImageUpload';
 import { ParameterPanel } from './components/controls/ParameterPanel';
 import { ExportPanel } from './components/export/ExportPanel';
 import { ReportDialog } from './components/report/ReportDialog';
+import { DiagnosticPage } from './pages/DiagnosticPage';
 import { useProjectStore } from './stores/projectStore';
 import './styles/custom.css';
 
@@ -16,6 +17,11 @@ const { Title } = Typography;
 function App() {
   const { currentImage, geometry, isProcessing } = useProjectStore();
   const [reportDialogVisible, setReportDialogVisible] = useState(false);
+  const [currentPage, setCurrentPage] = useState<'main' | 'diagnostic'>('main');
+
+  if (currentPage === 'diagnostic') {
+    return <DiagnosticPage onBack={() => setCurrentPage('main')} />;
+  }
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -30,8 +36,23 @@ function App() {
         <Title level={3} style={{ margin: 0, color: '#fff', fontWeight: 600 }}>
           🔍 Caustic Lens Designer
         </Title>
-        <div style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: 500 }}>
-          焦散透镜设计工具
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <Button 
+            type="text" 
+            icon={<BugOutlined />} 
+            onClick={() => setCurrentPage('diagnostic')}
+            style={{ 
+              color: '#fff', 
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: '6px',
+              fontWeight: 500
+            }}
+          >
+            诊断工具
+          </Button>
+          <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: 500 }}>
+            焦散透镜设计工具
+          </div>
         </div>
       </Header>
       
@@ -42,7 +63,7 @@ function App() {
             background: '#fafafa',
             borderRight: '1px solid #e8e8e8',
             overflow: 'auto',
-            height: 'calc(100vh - 64px)',
+            height: '130vh',
             boxShadow: '2px 0 8px rgba(0,0,0,0.06)'
           }}
         >

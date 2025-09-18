@@ -23,19 +23,16 @@ export const ParameterPanel: React.FC = () => {
 
   const resetToDefaults = () => {
     const defaultParams: CausticParameters = {
-      lensWidth: 100,
-      lensHeight: 100,
       focalLength: 200,  // Julia默认0.2米 = 200mm
       resolution: 512,  // Julia默认grid_definition = 512
-      thickness: 10,
       material: 'acrylic',
       refractiveIndex: 1.49,
-      targetDistance: 100,  // Julia默认artifactSize = 0.1米 = 100mm
+      targetDistance: 1000,  // 调整为1000mm
       lightSource: {
         type: 'parallel',
         intensity: 1.0,
         wavelength: 633,
-        position: { x: 0, y: 0, z: 10 }
+        position: { x: 0, y: 0, z: 150 }
       },
       optimization: {
         iterations: 4,  // 默认4次迭代，与Julia实现一致
@@ -66,104 +63,7 @@ export const ParameterPanel: React.FC = () => {
         layout="vertical"
         size="small"
       >
-        {/* 透镜基本参数 */}
-        <Title level={5} style={{ margin: '0 0 12px 0', fontSize: '14px' }}>
-          透镜尺寸
-        </Title>
-        
-        <Form.Item 
-          name="lensWidth"
-          label={
-            <Space>
-              <Text>宽度 (mm)</Text>
-              <Tooltip title="透镜的水平宽度。建议范围：50-150mm，过小会影响成像效果，过大会增加计算复杂度">
-                <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
-              </Tooltip>
-            </Space>
-          }
-        >
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <Slider
-              min={10}
-              max={200}
-              value={parameters.lensWidth}
-              onChange={(value) => handleParameterChange('lensWidth', value)}
-              style={{ flex: 1 }}
-            />
-            <InputNumber
-              min={10}
-              max={200}
-              value={parameters.lensWidth}
-              onChange={(value) => handleParameterChange('lensWidth', value || 100)}
-              size="small"
-              style={{ width: '70px' }}
-            />
-          </div>
-        </Form.Item>
 
-        <Form.Item 
-          name="lensHeight"
-          label={
-            <Space>
-              <Text>高度 (mm)</Text>
-              <Tooltip title="透镜的垂直高度。建议范围：50-150mm，通常与宽度保持一致以获得最佳效果">
-                <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
-              </Tooltip>
-            </Space>
-          }
-        >
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <Slider
-              min={10}
-              max={200}
-              value={parameters.lensHeight}
-              onChange={(value) => handleParameterChange('lensHeight', value)}
-              style={{ flex: 1 }}
-            />
-            <InputNumber
-              min={10}
-              max={200}
-              value={parameters.lensHeight}
-              onChange={(value) => handleParameterChange('lensHeight', value || 100)}
-              size="small"
-              style={{ width: '70px' }}
-            />
-          </div>
-        </Form.Item>
-
-        <Form.Item 
-          name="thickness"
-          label={
-            <Space>
-              <Text>厚度 (mm)</Text>
-              <Tooltip title="透镜的最大厚度。影响透镜的制造难度和光学性能。建议范围：5-15mm">
-                <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
-              </Tooltip>
-            </Space>
-          }
-        >
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <Slider
-              min={1}
-              max={20}
-              step={0.5}
-              value={parameters.thickness}
-              onChange={(value) => handleParameterChange('thickness', value)}
-              style={{ flex: 1 }}
-            />
-            <InputNumber
-              min={1}
-              max={20}
-              step={0.5}
-              value={parameters.thickness}
-              onChange={(value) => handleParameterChange('thickness', value || 5)}
-              size="small"
-              style={{ width: '70px' }}
-            />
-          </div>
-        </Form.Item>
-
-        <Divider style={{ margin: '16px 0' }} />
 
         {/* 光学参数 */}
         <Title level={5} style={{ margin: '0 0 12px 0', fontSize: '14px' }}>
@@ -214,16 +114,16 @@ export const ParameterPanel: React.FC = () => {
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <Slider
               min={50}
-              max={500}
+              max={1000}
               value={parameters.targetDistance}
               onChange={(value) => handleParameterChange('targetDistance', value)}
               style={{ flex: 1 }}
             />
             <InputNumber
               min={50}
-              max={500}
+              max={1000}
               value={parameters.targetDistance}
-              onChange={(value) => handleParameterChange('targetDistance', value || 200)}
+              onChange={(value) => handleParameterChange('targetDistance', value || 1000)}
               size="small"
               style={{ width: '70px' }}
             />
@@ -680,14 +580,14 @@ export const ParameterPanel: React.FC = () => {
             <div>
               <Text style={{ fontSize: '12px', color: '#666' }}>Z (mm)</Text>
               <InputNumber
-                min={-1000}
-                max={0}
+                min={0}
+                max={1000}
                 value={parameters.lightSource.position.z}
                 onChange={(value) => handleParameterChange('lightSource', {
                   ...parameters.lightSource,
                   position: {
                     ...parameters.lightSource.position,
-                    z: value || -300
+                    z: value || 150
                   }
                 })}
                 size="small"

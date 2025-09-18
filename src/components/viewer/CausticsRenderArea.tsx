@@ -89,7 +89,7 @@ export const CausticsRenderArea: React.FC = () => {
         </Space>
       }
     >
-      <div style={{ maxHeight: '400px', overflowY: 'auto', padding: '8px 0' }}>
+      <div style={{ maxHeight: '600px', overflowY: 'auto', padding: '8px 0' }}>
         {causticsRenderResults.length === 0 ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -183,7 +183,7 @@ export const CausticsRenderArea: React.FC = () => {
                         </Text>
                         <div style={{ fontSize: '12px' }}>
                           <Text type="secondary">参数: </Text>
-                          <Text>{result.parameters.lensWidth}×{result.parameters.lensHeight}mm, </Text>
+                          <Text>100×100mm, </Text>
                           <Text>焦距{result.parameters.focalLength}mm</Text>
                         </div>
                         {result.status === 'success' && (
@@ -231,7 +231,7 @@ export const CausticsRenderArea: React.FC = () => {
         )}
       </div>
       
-      <style jsx>{`
+      <style>{`
         @keyframes pulse {
           0% { opacity: 1; }
           50% { opacity: 0.5; }

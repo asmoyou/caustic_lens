@@ -72,9 +72,9 @@ export const ReportDialog: React.FC<ReportDialogProps> = ({ visible, onCancel })
         currentImage,
         geometry,
         {
-          lensWidth: parameters.lensWidth,
-          lensHeight: parameters.lensHeight,
-          thickness: parameters.thickness,
+          lensWidth: 100,
+          lensHeight: 100,
+          thickness: 5,
           focalLength: parameters.focalLength,
           refractiveIndex: parameters.refractiveIndex,
           resolution: parameters.resolution,
