@@ -1,5 +1,5 @@
+// 简化的焦散测试文件
 import * as THREE from 'three';
-import { CausticParameters } from '../types';
 
 /**
  * 简化的焦散测试场景

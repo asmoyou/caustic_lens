@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ProjectState, ImageData, CausticParameters, LensGeometry } from '../types';
+import type { ProjectState, ImageData, CausticParameters, LensGeometry } from '../types';
 
 // 焦散渲染结果接口
 interface CausticsRenderResult {
@@ -64,15 +64,14 @@ const defaultParameters: CausticParameters = {
   refractiveIndex: 1.49, // 典型的光学玻璃
   targetDistance: 1000,  // mm，调整为1000mm
   lightSource: {
-    type: 'parallel',
-    intensity: 1.0,
-    wavelength: 550,  // nm (绿光)
-    color: { r: 0.2, g: 1.0, b: 0.2 }, // 绿光对应的RGB颜色
-    position: { x: 0, y: 0, z: 150 }, // mm (光源在透镜前方，距离透镜150mm)
-    width: 50,  // 面光源默认宽度
-    height: 50, // 面光源默认高度
-    direction: { x: 0, y: 0, z: 1 } // 默认向前方向
-  },
+     type: 'parallel',
+     intensity: 1.0,
+     wavelength: 550,  // nm (绿光)
+     position: { x: 0, y: 0, z: 150 }, // mm (光源在透镜前方，距离透镜150mm)
+     width: 50,  // 面光源默认宽度
+     height: 50, // 面光源默认高度
+     direction: { x: 0, y: 0, z: 1 } // 默认向前方向
+   },
   optimization: {
     iterations: 4,  // Julia中使用4次oneIteration调用
     tolerance: 0.00001,  // Julia中使用0.00001收敛阈值

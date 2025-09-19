@@ -15,6 +15,7 @@ import {
 } from '@ant-design/icons';
 import * as THREE from 'three';
 import { useProjectStore } from '../../stores/projectStore';
+import type { LensGeometry, Point3D, CausticParameters, ImageData } from '../../types';
 
 // CausticsRenderer removed - using new implementation
 
@@ -2324,7 +2325,6 @@ const CausticProjection: React.FC<{
     try {
       // 创建一个临时canvas来获取纹理的图像数据
       const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
       canvas.width = 512;
       canvas.height = 512;
       
@@ -2790,7 +2790,7 @@ export const LensViewer: React.FC = () => {
                 {/* 基础墙面 - 仅在启用时显示 */}
                 {viewerSettings.showWall && (
                   <mesh position={[0, 0, -viewerSettings.wallDistance]} receiveShadow>
-                    <planeGeometry args={[Math.max((parameters.lensWidth || 50) * 4, 200), Math.max((parameters.lensHeight || 50) * 4, 150)]} />
+                    <planeGeometry args={[Math.max(100 * 4, 200), Math.max(100 * 4, 150)]} />
                     <meshLambertMaterial 
                       color={viewerSettings.showCaustics ? "#f8f8f8" : "#e0e0e0"} 
                       transparent 
@@ -2889,7 +2889,6 @@ export const LensViewer: React.FC = () => {
                           max={1000}
                           value={viewerSettings.wallDistance}
                           onChange={(value) => setViewerSettings(prev => ({ ...prev, wallDistance: value }))}
-                          size="small"
                         />
                       </div>
                     )}
@@ -2926,7 +2925,6 @@ export const LensViewer: React.FC = () => {
                       step={0.1}
                       value={viewerSettings.lightIntensity}
                       onChange={(value) => setViewerSettings(prev => ({ ...prev, lightIntensity: value }))}
-                      size="small"
                     />
                   </div>
                   

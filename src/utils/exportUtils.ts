@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LensGeometry } from '../types';
+import type { LensGeometry } from '../types';
 
 // 公共下载文件方法
 const downloadFile = (content: string, filename: string, mimeType: string): void => {

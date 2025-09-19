@@ -4,18 +4,16 @@
  */
 
 import * as THREE from 'three';
-import { CausticParameters, LensGeometry, Point3D } from '../types';
+import type { CausticParameters } from '../types';
 
 export class CausticDebugger {
   private scene: THREE.Scene;
   private renderer: THREE.WebGLRenderer;
-  private camera: THREE.PerspectiveCamera;
   private debugCanvas: HTMLCanvasElement;
   
   constructor() {
     this.scene = new THREE.Scene();
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
     this.debugCanvas = document.createElement('canvas');
     this.debugCanvas.width = 512;
     this.debugCanvas.height = 512;
@@ -25,7 +23,7 @@ export class CausticDebugger {
    * 测试1: 验证光源、透镜、墙面的空间关系
    */
   testSpatialRelationships(parameters: CausticParameters): {
-    lightSource: { x: number; y: number; z: number };
+    lightSourcePosition: { x: number; y: number; z: number };
     lensPosition: { x: number; y: number; z: number };
     wallPosition: { x: number; y: number; z: number };
     distances: {
@@ -75,7 +73,7 @@ export class CausticDebugger {
     }
     
     const result = {
-      lightSource,
+      lightSourcePosition: lightSource,
       lensPosition,
       wallPosition,
       distances: {

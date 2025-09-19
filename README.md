@@ -131,10 +131,11 @@ ports:
 
 ## 📚 详细文档
 
-- **[开发指南](DEVELOPMENT.md)** - 详细的开发环境设置和工作流程
-- **[部署指南](DEPLOYMENT.md)** - 各种部署方式和生产环境配置
+- **[开发指南](docs/DEVELOPMENT.md)** - 详细的开发环境设置和工作流程
+- **[部署指南](docs/DEPLOYMENT.md)** - 各种部署方式和生产环境配置
 - **[API 文档](docs/API.md)** - 核心算法和组件 API
-- **[贡献指南](CONTRIBUTING.md)** - 如何参与项目开发
+- **[贡献指南](docs/CONTRIBUTING.md)** - 如何参与项目开发
+- **[项目介绍](docs/ABOUT.md)** - 项目背景和详细介绍
 
 ## 🏗️ 技术架构
 

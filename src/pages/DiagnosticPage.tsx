@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Layout, Typography, Button, Space, Card, Row, Col } from 'antd';
 import { ArrowLeftOutlined, BugOutlined } from '@ant-design/icons';
 import { CausticTestPanel } from '../components/test/CausticTestPanel';

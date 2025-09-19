@@ -1,4 +1,5 @@
-import { CausticParameters, ImageData, LensGeometry } from '../types';
+import * as THREE from 'three';
+import type { CausticParameters, LensGeometry, Point3D, ImageData, ImageProcessingResult } from '../types';
 import { CausticsEngineeringGenerator } from './causticsEngineering';
 
 /**

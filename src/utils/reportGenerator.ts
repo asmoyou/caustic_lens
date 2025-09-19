@@ -1,4 +1,4 @@
-import { LensGeometry, ImageData } from '../types';
+import type { LensGeometry, ImageData } from '../types';
 
 // 报告数据接口
 export interface ReportData {
@@ -26,7 +26,7 @@ export interface ReportData {
 // HTML报告生成器
 export class HTMLReportGenerator {
   static generate(data: ReportData): string {
-    const { projectName, generatedAt, image, geometry, parameters, statistics } = data;
+    const { projectName, generatedAt, image, parameters, statistics } = data;
     
     return `
 <!DOCTYPE html>
