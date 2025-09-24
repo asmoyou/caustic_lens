@@ -49,7 +49,7 @@ export const CausticTestPanel: React.FC = () => {
         <Col span={8}>
           <Statistic 
             title="光源位置" 
-            value={`(${spatialTest.lightSource.x}, ${spatialTest.lightSource.y}, ${spatialTest.lightSource.z})`}
+            value={`(${spatialTest.lightSourcePosition.x}, ${spatialTest.lightSourcePosition.y}, ${spatialTest.lightSourcePosition.z})`}
             valueStyle={{ fontSize: '12px' }}
           />
         </Col>
