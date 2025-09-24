@@ -44,3 +44,9 @@ jobs:
     - name: Deploy to GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v4
+
+    - name: Summary
+      run: |
+        echo "✅ 部署完成！" >> $GITHUB_STEP_SUMMARY
+        echo "🌐 GitHub Pages: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "🐳 Docker镜像将通过docker-publish工作流自动构建" >> $GITHUB_STEP_SUMMARY
