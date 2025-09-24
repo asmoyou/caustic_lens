@@ -41,6 +41,7 @@ export interface LensGeometry {
 
 export interface CausticParameters {
   focalLength: number;
+  focalLengthMeters: number; // 焦距（米），用于算法计算
   resolution: number;
   material: string;
   refractiveIndex: number;

@@ -23,8 +23,9 @@ export const ParameterPanel: React.FC = () => {
 
   const resetToDefaults = () => {
     const defaultParams: CausticParameters = {
-      focalLength: 200,  // Julia默认0.2米 = 200mm
-      resolution: 512,  // Julia默认grid_definition = 512
+      focalLength: 200,  // 默认0.2米 = 200mm
+      focalLengthMeters: 3.5, // 算法焦距，默认3.5米
+      resolution: 512,  // 默认网格分辨率 = 512
       material: 'acrylic',
       refractiveIndex: 1.49,
       targetDistance: 1000,  // 调整为1000mm
@@ -35,12 +36,12 @@ export const ParameterPanel: React.FC = () => {
         position: { x: 0, y: 0, z: 150 }
       },
       optimization: {
-        iterations: 4,  // 默认4次迭代，与Julia实现一致
-        tolerance: 0.00001,  // Julia默认收敛阈值
+        iterations: 4,  // 默认4次迭代
+        tolerance: 0.00001,  // 默认收敛阈值
         algorithm: 'sor',  // SOR算法
         useGPUAcceleration: true,
         photonMapSize: 512,  // 与resolution保持一致
-        regularizationWeight: 1.99,  // Julia默认ω = 1.99
+        regularizationWeight: 1.99,  // 默认松弛因子ω = 1.99
         learningRate: 0.1
       }
     };
@@ -70,7 +71,7 @@ export const ParameterPanel: React.FC = () => {
           光学参数
         </Title>
 
-        <Form.Item 
+        {/* <Form.Item 
           name="focalLength"
           label={
             <Space>
@@ -94,6 +95,38 @@ export const ParameterPanel: React.FC = () => {
               max={200}
               value={parameters.focalLength}
               onChange={(value) => handleParameterChange('focalLength', value || 50)}
+              size="small"
+              style={{ width: '70px' }}
+            />
+          </div>
+        </Form.Item> */}
+
+        <Form.Item 
+          name="focalLengthMeters"
+          label={
+            <Space>
+              <Text>算法焦距 (m)</Text>
+              <Tooltip title="透镜的实际焦距，用于算法计算，影响透镜表面形状">
+                <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
+              </Tooltip>
+            </Space>
+          }
+        >
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Slider
+              min={0.2}
+              max={5}
+              step={0.1}
+              value={parameters.focalLengthMeters}
+              onChange={(value) => handleParameterChange('focalLengthMeters', value)}
+              style={{ flex: 1 }}
+            />
+            <InputNumber
+              min={0.2}
+              max={5}
+              step={0.1}
+              value={parameters.focalLengthMeters}
+              onChange={(value) => handleParameterChange('focalLengthMeters', value || 3.5)}
               size="small"
               style={{ width: '70px' }}
             />
@@ -202,7 +235,7 @@ export const ParameterPanel: React.FC = () => {
           label={
             <Space>
               <Text>网格分辨率</Text>
-              <Tooltip title="计算网格的密度，Julia默认512x512">
+              <Tooltip title="计算网格的密度，推荐使用512x512以获得最佳效果">
                 <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
               </Tooltip>
             </Space>
@@ -260,7 +293,7 @@ export const ParameterPanel: React.FC = () => {
           label={
             <Space>
               <Text>收敛容差</Text>
-              <Tooltip title="SOR算法收敛阈值。较小的值会得到更精确的结果，但计算时间更长。Julia默认0.00001">
+              <Tooltip title="SOR算法收敛阈值。较小的值会得到更精确的结果，但计算时间更长。推荐值：0.00001">
                 <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
               </Tooltip>
             </Space>
@@ -357,7 +390,7 @@ export const ParameterPanel: React.FC = () => {
           label={
             <Space>
               <Text>松弛因子 (ω)</Text>
-              <Tooltip title="SOR算法的松弛因子。控制收敛速度，1.0为标准松弛，1.0-2.0为超松弛。Julia推荐值：1.99">
+              <Tooltip title="SOR算法的松弛因子。控制收敛速度，1.0为标准松弛，1.0-2.0为超松弛。推荐值：1.99">
                 <InfoCircleOutlined style={{ color: '#999', fontSize: '12px' }} />
               </Tooltip>
             </Space>

@@ -666,7 +666,7 @@ export class CausticsEngineeringAlgorithm {
     
     // 物理参数（与Julia版本完全一致）
     const imgWidth = 0.1; // 透镜物理尺寸（米）
-    const f = 3.5;        // 焦距（米）
+    const f = this.parameters?.focalLengthMeters || 3.5;        // 焦距（米），从参数配置中获取
     const H = f;
     const metersPerPixel = imgWidth / width;
     
