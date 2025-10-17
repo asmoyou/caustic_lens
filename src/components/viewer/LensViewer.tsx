@@ -636,9 +636,29 @@ const CausticProjection: React.FC<{
   
   if (!show) return null;
   
-  // 墙面尺寸固定为300mm×300mm
-  const wallWidth = 300;
-  const wallHeight = 300;
+  // 墙面尺寸根据距离动态调整 - 平行光通过平面透镜的投影
+  // 对于平面透镜和平行光，投影大小与距离成线性关系
+  let projectionScale = distance / focalLength;
+  
+  // 避免在焦点处的奇异性
+  if (Math.abs(distance - focalLength) < 1) {
+    projectionScale = 1; // 在焦点附近保持原始大小
+  }
+  
+  // 确保合理的投影范围
+  projectionScale = Math.max(0.1, Math.min(10, projectionScale));
+  
+  const wallWidth = lensWidth * projectionScale;
+  const wallHeight = lensHeight * projectionScale;
+  
+  // console.log('墙面投影尺寸计算（平行光+平面透镜）:', {
+  //   distance,
+  //   focalLength,
+  //   projectionScale: projectionScale.toFixed(2),
+  //   lensSize: `${lensWidth}x${lensHeight}`,
+  //   wallSize: `${wallWidth.toFixed(1)}x${wallHeight.toFixed(1)}`,
+  //   atFocalPoint: Math.abs(distance - focalLength) < 1
+  // });
   
 
   
@@ -735,7 +755,12 @@ const CausticProjection: React.FC<{
       }
     }
     
+    // 焦散投影渲染器分辨率
     renderer.setSize(1024, 1024);
+    
+    // 设置清除色 - 灰色背景用于诊断
+    renderer.setClearColor(0x808080, 1.0);
+    console.log('渲染器清除色设置为灰色(0x808080)用于诊断');
     
     // 配置WebGL状态 - 添加错误检查
     renderer.autoClear = false;
@@ -777,7 +802,7 @@ const CausticProjection: React.FC<{
     // 添加WebGL错误监听
     const gl = renderer.getContext();
     const originalTexImage2D = gl.texImage2D;
-    gl.texImage2D = function(...args) {
+    gl.texImage2D = function(...args: any[]) {
       console.log('WebGL texImage2D调用:', {
         target: args[0],
         level: args[1], 
@@ -791,7 +816,7 @@ const CausticProjection: React.FC<{
         typeHex: '0x' + args[7]?.toString(16)
       });
       try {
-        return originalTexImage2D.apply(this, args);
+        return originalTexImage2D.apply(this, args as any);
       } catch (error) {
         console.error('WebGL texImage2D错误:', error, args);
         throw error;
@@ -810,6 +835,7 @@ const CausticProjection: React.FC<{
       formatHex: '0x' + THREE.RGBAFormat.toString(16)
     });
 
+    // 焦散渲染目标
     const causticsTarget = new THREE.WebGLRenderTarget(1024, 1024, {
       type: THREE.UnsignedByteType,
       format: THREE.RGBAFormat,
@@ -839,8 +865,30 @@ const CausticProjection: React.FC<{
     setRenderStage('设置相机...');
     await new Promise(resolve => setTimeout(resolve, 50));
     
-    // 创建光源相机
-    const lightCamera = new THREE.OrthographicCamera(-150, 150, 150, -150, 0.1, 1000);
+    // 先计算墙面几何体的实际尺寸（后面会用来创建几何体）
+    const wallSize = Math.max(distance * 4, 500); // 至少500mm，或距离的4倍
+    
+    // 创建光源相机 - 使用wallSize（实际几何体大小）而不是wallWidth/wallHeight（投影大小）
+    // wallSize是实际几何体尺寸，wallWidth/wallHeight是投影画面尺寸，两者可能不同！
+    const cameraSize = wallSize * 0.6; // 使用实际几何体大小，留20%余量
+    const cameraNear = 0.1;
+    const cameraFar = distance + 200; // 确保能看到墙面
+    const lightCamera = new THREE.OrthographicCamera(
+      -cameraSize, cameraSize, 
+      cameraSize, -cameraSize, 
+      cameraNear, cameraFar
+    );
+    
+    console.log('相机参数:', {
+      cameraSize,
+      cameraNear,
+      cameraFar,
+      wallGeometrySize: wallSize,
+      projectionSize: `${wallWidth}x${wallHeight}`,
+      distance,
+      note: 'cameraSize现在基于wallSize（几何体实际大小）而不是投影大小'
+    });
+    
     // 根据光源类型设置初始位置
     if (lightSource.type === 'point') {
       lightCamera.position.set(lightSource.position.x, lightSource.position.y, lightSource.position.z);
@@ -854,22 +902,25 @@ const CausticProjection: React.FC<{
     setRenderStage('生成透镜几何体...');
     await new Promise(resolve => setTimeout(resolve, 100));
     
-    // 创建墙面几何体用于显示焦散效果 - 增加尺寸确保覆盖焦散图案
-    const wallSize = Math.max(distance * 4, 500); // 至少500mm，或距离的4倍
-    const wallGeometry = new THREE.PlaneGeometry(wallSize, wallSize, 64, 64);
+    // 创建墙面几何体用于显示焦散效果 - 大幅提高细分度以捕捉复杂细节
+    // 从64x64提升到256x256，可以捕捉更精细的焦散图案
+    const wallGeometry = new THREE.PlaneGeometry(wallSize, wallSize, 256, 256);
     
     setRenderProgress(50);
     setRenderStage('生成高度图纹理...');
     await new Promise(resolve => setTimeout(resolve, 100));
     
-    // 生成高度图
+    // 生成高度图 - 关键修复：使用独立的高分辨率纹理而不是透镜网格分辨率
+    // 这是焦散细节的真正瓶颈！透镜网格512够用，但焦散纹理需要更高分辨率
+    const heightMapResolution = 2048; // 独立的高度图分辨率，大幅提升以捕捉细节
     const heightCanvas = document.createElement('canvas');
-    heightCanvas.width = resolution;
-    heightCanvas.height = resolution;
+    heightCanvas.width = heightMapResolution;
+    heightCanvas.height = heightMapResolution;
+    console.log(`生成高度图纹理: ${heightMapResolution}x${heightMapResolution} (透镜网格: ${resolution}x${resolution})`);
     const heightCtx = heightCanvas.getContext('2d')!;
     
     if (heightCtx) {
-      const imageData = heightCtx.createImageData(resolution, resolution);
+      const imageData = heightCtx.createImageData(heightMapResolution, heightMapResolution);
       
       // 从几何体数据生成高度图
       const vertices = geometry.vertices;
@@ -913,7 +964,7 @@ const CausticProjection: React.FC<{
             }
           `;
           
-          // 片段着色器 - 高度图计算（修复WebGL兼容性）
+          // 片段着色器 - 生成高度图（灰度图，高度值存储在R/G/B通道）
            const fragmentShaderSource = `
              precision highp float;
              varying vec2 v_texCoord;
@@ -926,46 +977,48 @@ const CausticProjection: React.FC<{
              uniform float u_resolution;
              
              void main() {
-               vec2 uv = v_texCoord;
-               float u = uv.x * 2.0 - 1.0;
-               float v = uv.y * 2.0 - 1.0;
+               // 将UV坐标映射到透镜世界坐标
+               vec2 worldPos = (v_texCoord * 2.0 - 1.0) * vec2(u_lensWidth, u_lensHeight) * 0.5;
                
-               float worldX = u * u_lensWidth * 0.5;
-               float worldY = v * u_lensHeight * 0.5;
+               // 采样顶点数据纹理
+               float texSizeF = sqrt(u_vertexCount) + 0.5;
+               int texSize = int(texSizeF);
+               float texStep = 1.0 / texSizeF;
                
-               float height = 0.5;
-               float minDistance = 999999.0;
+               // 使用更多采样来处理高顶点数量
+               float minDist = 999999.0;
+               float closestZ = 0.5;
                
-               // 使用固定循环次数避免WebGL限制
-               float vertexTexSize = ceil(sqrt(u_vertexCount));
+               // 计算合理的采样步长（跳过一些顶点以提高性能）
+               float sampleStep = max(1.0, floor(u_vertexCount / 2048.0));
                
-               // 限制最大循环次数以确保WebGL兼容性
-               float maxIterations = min(u_vertexCount, 1024.0);
-               
-               for (float i = 0.0; i < 1024.0; i += 1.0) {
-                 if (i >= maxIterations) break;
+               for (int i = 0; i < 2048; i++) {
+                 float sampleIndex = float(i) * sampleStep;
+                 if (sampleIndex >= u_vertexCount) break;
                  
-                 float row = floor(i / vertexTexSize);
-                 float col = mod(i, vertexTexSize);
-                 vec2 vertexUV = vec2(col / vertexTexSize, row / vertexTexSize);
-                 vec4 vertexData = texture2D(u_vertexData, vertexUV);
+                 int actualIndex = int(sampleIndex);
+                 int row = actualIndex / texSize;
+                 int col = actualIndex - row * texSize;
+                 vec2 sampleUV = (vec2(float(col), float(row)) + 0.5) * texStep;
                  
-                 // 跳过无效顶点数据
-                 if (vertexData.w < 0.5) continue;
+                 vec4 vertexData = texture2D(u_vertexData, sampleUV);
+                 vec2 vertexPos = vertexData.xy;
+                 float vertexZ = vertexData.z;
                  
-                 float vx = vertexData.x;
-                 float vy = vertexData.y;
-                 float vz = vertexData.z;
+                 // 计算距离
+                 float dist = distance(worldPos, vertexPos);
                  
-                 float distance = sqrt((vx - worldX) * (vx - worldX) + (vy - worldY) * (vy - worldY));
-                 
-                 if (distance < minDistance) {
-                   minDistance = distance;
-                   height = (vz - u_minZ) / (u_maxZ - u_minZ);
+                 if (dist < minDist) {
+                   minDist = dist;
+                   closestZ = vertexZ;
                  }
                }
                
-               gl_FragColor = vec4(height, height, height, 1.0);
+               // 使用最近邻的高度
+               float normalizedZ = (closestZ - u_minZ) / (u_maxZ - u_minZ);
+               
+               // 将高度值存储在RGB通道（灰度图）
+               gl_FragColor = vec4(normalizedZ, normalizedZ, normalizedZ, 1.0);
              }
            `;
           
@@ -1047,14 +1100,9 @@ const CausticProjection: React.FC<{
             const internalFormat = webglContext.RGBA32F || webglContext.RGBA;
             webglContext.texImage2D(webglContext.TEXTURE_2D, 0, internalFormat, textureSize, textureSize, 0, webglContext.RGBA, webglContext.FLOAT, vertexData);
           } else {
-            // 回退到8位整数纹理
-            const intData = new Uint8Array(vertexData.length);
-            for (let i = 0; i < vertexData.length; i++) {
-              intData[i] = Math.floor(vertexData[i] * 255);
-            }
-            // 使用正确的内部格式
-            const internalFormat = webglContext.RGBA8 || webglContext.RGBA;
-            webglContext.texImage2D(webglContext.TEXTURE_2D, 0, internalFormat, textureSize, textureSize, 0, webglContext.RGBA, webglContext.UNSIGNED_BYTE, intData);
+            // 回退到8位整数纹理 - 需要归一化坐标
+            console.warn('不支持浮点纹理，回退到CPU计算以保证精度');
+            throw new Error('浮点纹理不支持，回退到CPU');
           }
           webglContext.texParameteri(webglContext.TEXTURE_2D, webglContext.TEXTURE_MIN_FILTER, webglContext.NEAREST);
           webglContext.texParameteri(webglContext.TEXTURE_2D, webglContext.TEXTURE_MAG_FILTER, webglContext.NEAREST);
@@ -1069,6 +1117,32 @@ const CausticProjection: React.FC<{
           webglContext.uniform1f(webglContext.getUniformLocation(program, 'u_lensWidth'), lensWidth);
           webglContext.uniform1f(webglContext.getUniformLocation(program, 'u_lensHeight'), lensHeight);
           webglContext.uniform1f(webglContext.getUniformLocation(program, 'u_resolution'), resolution);
+          
+          // 验证uniform值和顶点数据
+          console.log('🔍 GPU着色器参数验证:', {
+            vertexCount,
+            minZ,
+            maxZ,
+            zRange: maxZ - minZ,
+            lensWidth,
+            lensHeight,
+            resolution,
+            textureSize,
+            hasFloatExt: !!ext,
+            vertexDataSample: Array.from(vertexData.slice(0, 12)),
+            firstVertex: {
+              x: vertices[0]?.x,
+              y: vertices[0]?.y,
+              z: vertices[0]?.z
+            },
+            sampleStepInShader: Math.max(1, Math.floor(vertexCount / 2048))
+          });
+          
+          // 检查WebGL错误
+          const preDrawError = webglContext.getError();
+          if (preDrawError !== webglContext.NO_ERROR) {
+            console.error('渲染前WebGL错误:', preDrawError);
+          }
           
           setRenderProgress(70);
           setRenderStage('GPU渲染中...');
@@ -1094,10 +1168,40 @@ const CausticProjection: React.FC<{
             }
           }
           
+          // 先验证pixels数据
+          let gpuMin = 255, gpuMax = 0, nonZeroCount = 0;
+          for (let i = 0; i < pixels.length; i += 4) {
+            const r = pixels[i];
+            if (r < gpuMin) gpuMin = r;
+            if (r > gpuMax) gpuMax = r;
+            if (r > 0) nonZeroCount++;
+          }
+          console.log('GPU计算pixels验证（复制前）:', {
+            pixelsLength: pixels.length,
+            sample: Array.from(pixels.slice(0, 20)),
+            min: gpuMin,
+            max: gpuMax,
+            nonZeroPixels: nonZeroCount,
+            totalPixels: pixels.length / 4
+          });
+          
           // 复制到ImageData
           for (let i = 0; i < pixels.length; i++) {
             imageData.data[i] = pixels[i];
           }
+          
+          // 验证复制后的imageData
+          let copyMin = 255, copyMax = 0;
+          for (let i = 0; i < imageData.data.length; i += 4) {
+            const r = imageData.data[i];
+            if (r < copyMin) copyMin = r;
+            if (r > copyMax) copyMax = r;
+          }
+          console.log('复制到imageData后验证:', {
+            min: copyMin,
+            max: copyMax,
+            sample: Array.from(imageData.data.slice(0, 20))
+          });
           
           // 清理GPU资源
           webglContext.deleteTexture(vertexTexture);
@@ -1119,8 +1223,11 @@ const CausticProjection: React.FC<{
         const zRange = maxZ - minZ;
         
         // 优化算法：使用空间分割网格加速最近邻查找
-        console.log('构建空间分割网格...');
-        const gridSize = 64; // 网格分辨率
+        console.log(`构建空间分割网格... (顶点数: ${vertices.length})`);
+        // 根据高度图分辨率调整网格大小，确保足够精细以捕捉细节
+        // 关键修复：网格大小应该与高度图分辨率匹配，而不是基于顶点数
+        const gridSize = Math.min(512, Math.max(256, Math.floor(resolution / 4))); // 使用更高的网格分辨率
+        console.log(`使用网格大小: ${gridSize}x${gridSize} (高度图: ${resolution}x${resolution})`);
         const spatialGrid: { [key: string]: typeof vertices } = {};
       
         // 计算世界坐标范围
@@ -1151,13 +1258,96 @@ const CausticProjection: React.FC<{
         
         console.log(`空间网格构建完成，共 ${Object.keys(spatialGrid).length} 个非空单元`);
         
+        // 计算每个网格单元的平均顶点数
+        const avgVerticesPerCell = vertices.length / Object.keys(spatialGrid).length;
+        console.log(`平均每个网格单元: ${avgVerticesPerCell.toFixed(1)} 个顶点`);
+        
+        // 调试：显示坐标范围
+        console.log(`顶点坐标范围: X[${minX.toFixed(3)}, ${maxX.toFixed(3)}], Y[${minY.toFixed(3)}, ${maxY.toFixed(3)}], Z[${minZ.toFixed(3)}, ${maxZ.toFixed(3)}]`);
+        console.log(`透镜尺寸: ${lensWidth} x ${lensHeight}`);
+        console.log(`网格单元尺寸: ${cellWidth.toFixed(3)} x ${cellHeight.toFixed(3)}`);
+        
+        // 关键：检测并过滤平面（平面透镜的平坦一侧）
+        // 如果minZ附近有大量顶点，说明那是平面，应该过滤掉
+        let zHistogram: {[key: number]: number} = {};
+        for (const vertex of vertices) {
+          const zBucket = Math.floor(vertex.z * 2) / 2; // 0.5精度分桶
+          zHistogram[zBucket] = (zHistogram[zBucket] || 0) + 1;
+        }
+        
+        // 找到顶点数量最多的Z值层（可能是平面）
+        let maxCount = 0;
+        let flatZ = minZ;
+        for (const [z, count] of Object.entries(zHistogram)) {
+          if (count > maxCount) {
+            maxCount = count;
+            flatZ = parseFloat(z);
+          }
+        }
+        
+        // 如果某个Z层的顶点数超过总数的30%，认为是平面
+        const flatPlaneThreshold = vertices.length * 0.3;
+        const hasFlatPlane = maxCount > flatPlaneThreshold;
+        
+        console.log(`Z值分布分析: 最密集层z=${flatZ.toFixed(3)}, 顶点数=${maxCount} (${(maxCount/vertices.length*100).toFixed(1)}%)`);
+        console.log(`检测到平面: ${hasFlatPlane}, 阈值: ${flatPlaneThreshold.toFixed(0)}`);
+        
+        // 如果检测到平面，从空间网格中移除该平面的顶点
+        if (hasFlatPlane) {
+          console.log(`过滤平面顶点 (z≈${flatZ.toFixed(3)})...`);
+          const zTolerance = 0.3;
+          let filteredCount = 0;
+          
+          for (const key in spatialGrid) {
+            spatialGrid[key] = spatialGrid[key].filter(v => {
+              const isFlatPlane = Math.abs(v.z - flatZ) < zTolerance;
+              if (isFlatPlane) filteredCount++;
+              return !isFlatPlane;
+            });
+            // 移除空单元
+            if (spatialGrid[key].length === 0) {
+              delete spatialGrid[key];
+            }
+          }
+          
+          console.log(`已过滤 ${filteredCount} 个平面顶点，剩余 ${vertices.length - filteredCount} 个有效顶点`);
+          
+          // 关键修复：基于过滤后的顶点重新计算Z范围
+          let newMinZ = Infinity, newMaxZ = -Infinity;
+          for (const key in spatialGrid) {
+            for (const vertex of spatialGrid[key]) {
+              newMinZ = Math.min(newMinZ, vertex.z);
+              newMaxZ = Math.max(newMaxZ, vertex.z);
+            }
+          }
+          
+          // 更新Z范围用于高度归一化
+          if (newMinZ < Infinity && newMaxZ > -Infinity) {
+            const oldRange = maxZ - minZ;
+            const newRange = newMaxZ - newMinZ;
+            console.log(`重新计算Z范围: 旧[${minZ.toFixed(3)}, ${maxZ.toFixed(3)}] range=${oldRange.toFixed(3)}`);
+            console.log(`             新[${newMinZ.toFixed(3)}, ${newMaxZ.toFixed(3)}] range=${newRange.toFixed(3)}`);
+            minZ = newMinZ;
+            maxZ = newMaxZ;
+            console.log(`✅ 使用过滤后的Z范围，高度图将有更好的对比度`);
+          }
+        }
+        
         // 异步分批处理像素，避免阻塞主线程
-        const batchSize = 64; // 增加批处理大小
+        const batchSize = 32; // 减小批处理大小以保持响应性
         let currentRow = 0;
+        
+        // 统计：有多少像素找到了顶点
+        let pixelsFoundVertices = 0;
+        let pixelsNoVertices = 0;
+        let totalSearchDistance = 0;
         
         const processRowBatch = async (): Promise<void> => {
           return new Promise((resolve) => {
             const endRow = Math.min(currentRow + batchSize, resolution);
+            
+            // 调试第一批的前几个像素
+            const isFirstBatch = currentRow === 0;
             
             for (let y = currentRow; y < endRow; y++) {
               for (let x = 0; x < resolution; x++) {
@@ -1168,50 +1358,97 @@ const CausticProjection: React.FC<{
                 const worldX = u * (lensWidth / 2);
                 const worldY = v * (lensHeight / 2);
                 
+                // 第一个像素输出详细信息
+                // if (isFirstBatch && x === 0 && y === 0) {
+                //   console.log(`🔍 第一个像素(0,0): u=${u.toFixed(3)}, v=${v.toFixed(3)}, worldX=${worldX.toFixed(3)}, worldY=${worldY.toFixed(3)}`);
+                //   console.log(`   映射到高度图像素坐标范围: [${minX.toFixed(2)}, ${maxX.toFixed(2)}] x [${minY.toFixed(2)}, ${maxY.toFixed(2)}]`);
+                // }
+                
                 // 确定搜索的网格单元（3x3区域）
                 const centerGridX = Math.floor((worldX - minX) / cellWidth);
                 const centerGridY = Math.floor((worldY - minY) / cellHeight);
                 
                 let height = 0.5; // 默认高度
                 let minDistance = Infinity;
+                let foundVertexCount = 0;
+                let closestVertex = null;
+                const verticesFound = [];
                 
-                // 搜索3x3网格区域内的顶点
-                for (let dx = -1; dx <= 1; dx++) {
-                  for (let dy = -1; dy <= 1; dy++) {
+                // 关键修复：使用更精确的阈值以保留复杂模型的细节
+                // 阈值应该远小于cellWidth，以避免过度平滑
+                const xyThreshold = cellWidth * 0.5; // 减小阈值以保留更多细节
+                let maxZ = -Infinity; // 在距离阈值内的最大z值
+                
+                // 扩大搜索范围到5x5网格区域
+                const searchRadius = 2;
+                for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+                  for (let dy = -searchRadius; dy <= searchRadius; dy++) {
                     const gridX = Math.max(0, Math.min(gridSize-1, centerGridX + dx));
                     const gridY = Math.max(0, Math.min(gridSize-1, centerGridY + dy));
                     const key = `${gridX},${gridY}`;
                     
                     const cellVertices = spatialGrid[key];
                     if (cellVertices) {
+                      foundVertexCount += cellVertices.length;
                       for (const vertex of cellVertices) {
                         const distance = Math.sqrt(
                           Math.pow(vertex.x - worldX, 2) + 
                           Math.pow(vertex.y - worldY, 2)
                         );
                         
-                        if (distance < minDistance) {
+                        // 在XY距离阈值内，选择z值最大的顶点（表面）
+                        if (distance < xyThreshold && vertex.z > maxZ) {
+                          maxZ = vertex.z;
                           minDistance = distance;
                           height = (vertex.z - minZ) / zRange;
+                          closestVertex = vertex;
+                        }
+                        
+                        // 如果没有找到阈值内的顶点，回退到最近的顶点
+                        if (maxZ === -Infinity && distance < minDistance) {
+                          minDistance = distance;
+                          height = (vertex.z - minZ) / zRange;
+                          closestVertex = vertex;
+                        }
+                        
+                        // 收集前几个用于调试
+                        if (isFirstBatch && x === 0 && y === 0 && verticesFound.length < 10) {
+                          verticesFound.push({x: vertex.x, y: vertex.y, z: vertex.z, dist: distance});
                         }
                       }
                     }
                   }
                 }
                 
+                // 第一个像素调试输出（简化）
+                if (isFirstBatch && x === 0 && y === 0) {
+                  console.log(`第一个像素(0,0): 找到${foundVertexCount}个顶点, 最近距离=${minDistance.toFixed(3)}, 高度=${height.toFixed(3)}`);
+                  if (closestVertex) {
+                    console.log(`   最近顶点z=${closestVertex.z.toFixed(3)}`);
+                  }
+                }
+                
+                // 统计找到的顶点
+                if (minDistance < Infinity) {
+                  pixelsFoundVertices++;
+                  totalSearchDistance += minDistance;
+                } else {
+                  pixelsNoVertices++;
+                }
+                
                 // 归一化高度到0-1范围
                 height = Math.max(0, Math.min(1, height));
                 
-                // 添加透镜曲率（可选）
-                if (focalLength > 0) {
-                  const r = Math.sqrt(worldX * worldX + worldY * worldY);
-                  const lensRadius = Math.min(lensWidth, lensHeight) / 2;
-                  if (r < lensRadius) {
-                    const curvature = 1 / focalLength;
-                    const lensHeight = curvature * r * r / 2;
-                    height += lensHeight * 0.1; // 轻微的透镜曲率影响
-                  }
-                }
+                // 注释掉圆形透镜曲率，使用实际几何体形状
+                // if (focalLength > 0) {
+                //   const r = Math.sqrt(worldX * worldX + worldY * worldY);
+                //   const lensRadius = Math.min(lensWidth, lensHeight) / 2;
+                //   if (r < lensRadius) {
+                //     const curvature = 1 / focalLength;
+                //     const lensHeight = curvature * r * r / 2;
+                //     height += lensHeight * 0.1; // 轻微的透镜曲率影响
+                //   }
+                // }
                 
                 // 设置像素值
                 const pixelIndex = (y * resolution + x) * 4;
@@ -1221,9 +1458,10 @@ const CausticProjection: React.FC<{
                 imageData.data[pixelIndex + 2] = heightValue; // B
                 imageData.data[pixelIndex + 3] = 255;         // A
                 
-                // 调试：记录一些像素值
-                if (x % 100 === 0 && y % 100 === 0) {
-                  console.log(`像素(${x},${y}): 世界坐标(${worldX.toFixed(3)},${worldY.toFixed(3)}), 高度=${height.toFixed(3)}, 像素值=${heightValue}`);
+                // 记录中心像素（仅用于关键调试）
+                const centerPixel = Math.floor(resolution / 2);
+                if (isFirstBatch && x === centerPixel && y === centerPixel) {
+                  console.log(`🎯 中心像素(${x},${y}): height=${height.toFixed(3)}, value=${heightValue}, z=${closestVertex ? closestVertex.z.toFixed(2) : 'N/A'}`);
                 }
               }
             }
@@ -1233,6 +1471,7 @@ const CausticProjection: React.FC<{
             // 更新进度
             const progress = Math.floor((currentRow / resolution) * 40) + 20; // 20-60%
             setRenderProgress(progress);
+            setRenderStage(`CPU计算高度图中... ${Math.floor(currentRow / resolution * 100)}%`);
             
             // 让出控制权给主线程
             setTimeout(resolve, 0);
@@ -1244,41 +1483,125 @@ const CausticProjection: React.FC<{
           await processRowBatch();
         }
         
-        // 统计高度图数据
+        // 输出顶点查找统计
+        const totalProcessedPixels = pixelsFoundVertices + pixelsNoVertices;
+        const avgDistance = pixelsFoundVertices > 0 ? totalSearchDistance / pixelsFoundVertices : 0;
+        console.log(`顶点查找统计: 找到=${pixelsFoundVertices} (${(pixelsFoundVertices/totalProcessedPixels*100).toFixed(1)}%), 未找到=${pixelsNoVertices}, 平均距离=${avgDistance.toFixed(3)}`);
+        
+        // 统计高度图数据 - 详细分析
         let minPixel = 255, maxPixel = 0, totalPixels = 0, nonZeroPixels = 0;
+        const sampleValues = [];
+        const histogram: {[key: number]: number} = {}; // 值分布直方图
+        
         for (let i = 0; i < imageData.data.length; i += 4) {
           const pixelValue = imageData.data[i];
           minPixel = Math.min(minPixel, pixelValue);
           maxPixel = Math.max(maxPixel, pixelValue);
           totalPixels++;
           if (pixelValue > 0) nonZeroPixels++;
+          
+          // 统计值分布（分为10个桶）
+          const bucket = Math.floor(pixelValue / 25.5);
+          histogram[bucket] = (histogram[bucket] || 0) + 1;
+          
+          // 采样一些值用于调试
+          if (sampleValues.length < 20 && i % 10000 === 0) {
+            sampleValues.push(pixelValue);
+          }
         }
         
         console.log('CPU高度图生成完成');
-        console.log(`高度图统计: 最小值=${minPixel}, 最大值=${maxPixel}, 总像素=${totalPixels}, 非零像素=${nonZeroPixels} (${(nonZeroPixels/totalPixels*100).toFixed(1)}%)`);
+        console.log(`高度图统计: 最小值=${minPixel}, 最大值=${maxPixel}, 范围=${maxPixel - minPixel}`);
+        console.log(`           总像素=${totalPixels}, 非零像素=${nonZeroPixels} (${(nonZeroPixels/totalPixels*100).toFixed(1)}%)`);
+        console.log(`高度图采样值:`, sampleValues);
+        
+        // 显示值分布
+        const distribution = Object.keys(histogram).sort((a, b) => parseInt(a) - parseInt(b)).map(k => {
+          const range = `${parseInt(k)*25.5}-${(parseInt(k)+1)*25.5}`;
+          const count = histogram[parseInt(k)];
+          const percent = (count / totalPixels * 100).toFixed(1);
+          return `${range}: ${percent}%`;
+        });
+        console.log('高度值分布:', distribution.join(', '));
+        
+        // 如果高度图全黑或范围太窄，警告
+        if (maxPixel === 0) {
+          console.error('⚠️ 高度图计算结果全为0，这是不正常的！');
+        } else if (maxPixel - minPixel < 50) {
+          console.warn(`⚠️ 高度图对比度太低！范围只有${maxPixel - minPixel}，建议至少100以上`);
+        }
       };
       
       // 根据顶点数量选择计算方式
-      if (vertices.length > 5000) {
-        console.log('顶点数量较多，使用Web Worker异步计算...');
-        setRenderStage('异步并行计算高度图...');
+      // GPU shader对于超大顶点数效果不好，改用CPU空间网格加速
+      if (vertices.length > 100000) {
+        console.log(`顶点数量过多 (${vertices.length})，GPU采样不足，使用CPU空间网格加速...`);
+        setRenderStage('CPU空间网格加速计算高度图...');
+        await generateHeightMapCPU(imageData, vertices, heightMapResolution, minZ, maxZ, lensWidth, lensHeight);
+      } else if (vertices.length > 500) {
+        console.log(`顶点数量: ${vertices.length}，使用GPU加速计算高度图...`);
+        setRenderStage('GPU加速计算高度图...');
         
         try {
-          await generateHeightMapGPU(imageData, vertices, resolution, minZ, maxZ, lensWidth, lensHeight);
+          await generateHeightMapGPU(imageData, vertices, heightMapResolution, minZ, maxZ, lensWidth, lensHeight);
+          
+          // 立即验证GPU计算后的imageData
+          let gpuResultMin = 255, gpuResultMax = 0;
+          for (let i = 0; i < imageData.data.length; i += 4) {
+            const r = imageData.data[i];
+            if (r < gpuResultMin) gpuResultMin = r;
+            if (r > gpuResultMax) gpuResultMax = r;
+          }
+          console.log('GPU计算后立即验证imageData:', {
+            min: gpuResultMin,
+            max: gpuResultMax,
+            sample: Array.from(imageData.data.slice(0, 20))
+          });
+          
           setRenderProgress(70);
         } catch (error) {
           console.warn('Web Worker计算失败，回退到CPU计算:', error);
           setRenderStage('异步计算失败，使用CPU计算...');
-          await generateHeightMapCPU(imageData, vertices, resolution, minZ, maxZ, lensWidth, lensHeight);
+          await generateHeightMapCPU(imageData, vertices, heightMapResolution, minZ, maxZ, lensWidth, lensHeight);
         }
       } else {
         console.log('顶点数量较少，使用CPU计算高度图...');
-        await generateHeightMapCPU(imageData, vertices, resolution, minZ, maxZ, lensWidth, lensHeight);
+        await generateHeightMapCPU(imageData, vertices, heightMapResolution, minZ, maxZ, lensWidth, lensHeight);
       }
       
       // 函数定义已移到上方，删除重复定义
       
       heightCtx.putImageData(imageData, 0, 0);
+      
+      // 验证imageData写入后的canvas内容
+      // 手动计算min/max避免堆栈溢出
+      let minVal = 255, maxVal = 0;
+      for (let i = 0; i < imageData.data.length; i++) {
+        if (imageData.data[i] < minVal) minVal = imageData.data[i];
+        if (imageData.data[i] > maxVal) maxVal = imageData.data[i];
+      }
+      
+      console.log('验证putImageData前的imageData:', {
+        width: imageData.width,
+        height: imageData.height,
+        sample: Array.from(imageData.data.slice(0, 20)),
+        min: minVal,
+        max: maxVal
+      });
+      
+      // 立即读回验证
+      const verifyData = heightCtx.getImageData(0, 0, Math.min(10, heightMapResolution), Math.min(10, heightMapResolution));
+      let verifyMin = 255, verifyMax = 0;
+      for (let i = 0; i < verifyData.data.length; i++) {
+        if (verifyData.data[i] < verifyMin) verifyMin = verifyData.data[i];
+        if (verifyData.data[i] > verifyMax) verifyMax = verifyData.data[i];
+      }
+      
+      console.log('验证putImageData后的canvas:', {
+        sample: Array.from(verifyData.data.slice(0, 20)),
+        min: verifyMin,
+        max: verifyMax
+      });
     }
     
     setRenderProgress(70);
@@ -1288,6 +1611,17 @@ const CausticProjection: React.FC<{
     const waterTexture = new THREE.CanvasTexture(heightCanvas);
     waterTexture.wrapS = THREE.RepeatWrapping;
     waterTexture.wrapT = THREE.RepeatWrapping;
+    waterTexture.needsUpdate = true;
+    waterTexture.flipY = false;
+    waterTexture.generateMipmaps = false;
+    waterTexture.minFilter = THREE.LinearFilter;
+    waterTexture.magFilter = THREE.LinearFilter;
+    
+    console.log('waterTexture创建完成:', {
+      width: waterTexture.image.width,
+      height: waterTexture.image.height,
+      needsUpdate: waterTexture.needsUpdate
+    });
     
     // 获取光源颜色 - 使用白光或用户设置的颜色
     const lightColor = lightSource?.color ? 
@@ -1376,13 +1710,15 @@ const CausticProjection: React.FC<{
       'pmma': 1.49
     }[refractiveIndex === 1.49 ? 'acrylic' : refractiveIndex === 1.54 ? 'crystal' : refractiveIndex === 1.59 ? 'polycarbonate' : 'glass'] || refractiveIndex;
     
-    // 创建简化的焦散材质用于调试
-    const simplifiedFragmentShader = `
+    // 基于高度图的焦散着色器（优化版本）
+    const causticsFragmentShader = `
       precision highp float;
       
       uniform vec3 lightColor;
       uniform float refractiveIndex;
       uniform float wallDistance;
+      uniform sampler2D heightMap;
+      uniform float heightMapResolution;
       
       varying vec3 worldPosition;
       varying vec3 worldNormal;
@@ -1391,26 +1727,130 @@ const CausticProjection: React.FC<{
       varying vec3 viewDirection;
       
       void main() {
-        // 简化但完整的焦散计算
-        vec3 normal = normalize(worldNormal);
-        vec3 lightDir = normalize(lightDirection);
+        // 采样步长
+        float delta = 1.0 / heightMapResolution;
         
-        // 基础光照计算
-        float NdotL = max(dot(normal, lightDir), 0.0);
+        // 多点采样
+        float h_center = texture2D(heightMap, vUv).r;
+        float h_right = texture2D(heightMap, vUv + vec2(delta, 0.0)).r;
+        float h_left = texture2D(heightMap, vUv - vec2(delta, 0.0)).r;
+        float h_up = texture2D(heightMap, vUv + vec2(0.0, delta)).r;
+        float h_down = texture2D(heightMap, vUv - vec2(0.0, delta)).r;
         
-        // 简单的焦散模拟
-        vec2 causticUV = worldPosition.xy * 0.1;
-        float wave1 = sin(causticUV.x * 10.0) * sin(causticUV.y * 10.0);
-        float wave2 = sin(causticUV.x * 7.0 + 1.0) * sin(causticUV.y * 8.0 + 0.5);
-        float causticPattern = abs(wave1) * 0.6 + abs(wave2) * 0.4;
+        // 对角线采样
+        float h_ur = texture2D(heightMap, vUv + vec2(delta, delta)).r;
+        float h_ul = texture2D(heightMap, vUv + vec2(-delta, delta)).r;
+        float h_dr = texture2D(heightMap, vUv + vec2(delta, -delta)).r;
+        float h_dl = texture2D(heightMap, vUv + vec2(-delta, -delta)).r;
         
-        // 确保有基础亮度
-        float intensity = NdotL * causticPattern * 0.8 + 0.3;
-        intensity = clamp(intensity, 0.2, 1.0);
+        // 计算梯度
+        float gradX = (h_right - h_left) / (2.0 * delta);
+        float gradY = (h_up - h_down) / (2.0 * delta);
         
-        // 应用光源颜色，增强亮度
-        vec3 finalColor = lightColor * intensity * 1.5;
-        finalColor = clamp(finalColor, vec3(0.1), vec3(1.0));
+        // 计算曲率
+        float curvatureX = (h_right - 2.0 * h_center + h_left) / (delta * delta);
+        float curvatureY = (h_up - 2.0 * h_center + h_down) / (delta * delta);
+        float curvature = abs(curvatureX) + abs(curvatureY);
+        
+        float gradMag = length(vec2(gradX, gradY));
+        float variation = abs(h_ur - h_dl) + abs(h_ul - h_dr);
+        
+        // 焦散强度计算
+        float causticIntensity = 0.0;
+        causticIntensity += curvature * 1000.0;
+        causticIntensity += gradMag * 500.0;
+        causticIntensity += variation * 200.0;
+        
+        causticIntensity = clamp(causticIntensity, 0.0, 10.0);
+        causticIntensity = pow(causticIntensity / 10.0, 0.5);
+        
+        vec3 finalColor = lightColor * causticIntensity;
+        finalColor = max(finalColor, vec3(0.05));
+        
+        gl_FragColor = vec4(finalColor, 1.0);
+      }
+    `;
+    
+    // 保留焦散计算函数供后续使用
+    const causticsFragmentShader_BACKUP = `
+      precision highp float;
+      
+      uniform vec3 lightColor;
+      uniform float refractiveIndex;
+      uniform float wallDistance;
+      uniform sampler2D heightMap; // 透镜高度图
+      
+      varying vec3 worldPosition;
+      varying vec3 worldNormal;
+      varying vec2 vUv;
+      varying vec3 lightDirection;
+      varying vec3 viewDirection;
+      
+      // 计算光线折射后的焦散强度（基于真实高度图）
+      float calculateCausticIntensity(vec2 uv, sampler2D heightMap) {
+        // 采样步长（用于计算梯度）
+        float delta = 1.0 / 1024.0; // 梯度采样步长
+        
+        // 采样中心和周围的高度值
+        float h_center = texture2D(heightMap, uv).r;
+        float h_right = texture2D(heightMap, uv + vec2(delta, 0.0)).r;
+        float h_left = texture2D(heightMap, uv - vec2(delta, 0.0)).r;
+        float h_up = texture2D(heightMap, uv + vec2(0.0, delta)).r;
+        float h_down = texture2D(heightMap, uv - vec2(0.0, delta)).r;
+        
+        // 计算梯度（透镜表面的倾斜度）
+        // 使用中心差分获得更准确的梯度
+        float gradX = (h_right - h_left) / (2.0 * delta);
+        float gradY = (h_up - h_down) / (2.0 * delta);
+        
+        // 计算二阶导数（曲率，决定了光线聚散）
+        float curvatureX = (h_right - 2.0 * h_center + h_left) / (delta * delta);
+        float curvatureY = (h_up - 2.0 * h_center + h_down) / (delta * delta);
+        float curvature = abs(curvatureX) + abs(curvatureY);
+        
+        // 焦散强度与曲率成正比：曲率大的地方光线聚集，形成焦散
+        // 折射率也影响焦散强度
+        float refractiveFactor = (refractiveIndex - 1.0) * 2.0;
+        float causticBase = curvature * refractiveFactor * 50.0;
+        
+        // 添加基于梯度的细节
+        float gradientMagnitude = length(vec2(gradX, gradY));
+        float gradientDetail = gradientMagnitude * refractiveFactor * 10.0;
+        
+        // 组合基础焦散和细节
+        float intensity = causticBase + gradientDetail * 0.5;
+        
+        // 添加一些高频细节（模拟次级焦散）
+        vec2 refractOffset = vec2(gradX, gradY) * refractiveFactor;
+        float highFreq = sin((uv.x + refractOffset.x) * 100.0) * 
+                        cos((uv.y + refractOffset.y) * 100.0) * 0.1;
+        intensity += highFreq;
+        
+        // 确保在合理范围内
+        intensity = clamp(intensity, 0.0, 3.0);
+        
+        return intensity;
+      }
+      
+      void main() {
+        // 计算基于真实高度图的焦散强度
+        float causticIntensity = calculateCausticIntensity(vUv, heightMap);
+        
+        // 对比度调整和高光
+        causticIntensity = pow(causticIntensity, 0.8); // 稍微柔化
+        
+        // 添加明显的高光区域
+        float highlight = pow(max(causticIntensity - 0.8, 0.0), 2.0) * 3.0;
+        causticIntensity = causticIntensity + highlight;
+        
+        // 归一化到 [0, 1] 范围，但保留一些超亮区域
+        causticIntensity = min(causticIntensity, 1.5);
+        
+        // 应用光源颜色
+        vec3 finalColor = lightColor * causticIntensity;
+        
+        // 确保有基础照明（避免全黑区域）
+        finalColor = max(finalColor, vec3(0.02));
         
         gl_FragColor = vec4(finalColor, 1.0);
       }
@@ -1430,6 +1870,11 @@ const CausticProjection: React.FC<{
 
     // 创建匹配的顶点着色器，提供片段着色器需要的varying变量
     const matchingVertexShader = `
+      // Three.js内置的attributes（自动提供）
+      // attribute vec3 position;
+      // attribute vec3 normal;
+      // attribute vec2 uv;
+      
       varying vec3 worldPosition;
       varying vec3 worldNormal;
       varying vec2 vUv;
@@ -1439,6 +1884,7 @@ const CausticProjection: React.FC<{
       uniform vec3 lightPosition;
       
       void main() {
+        // 直接传递UV坐标
         vUv = uv;
         
         // 计算世界坐标位置
@@ -1458,45 +1904,31 @@ const CausticProjection: React.FC<{
       }
     `;
 
-    // 首先测试简单的纯色着色器
-    const useTestShader = true; // 临时使用测试着色器
+    // 使用优化的高度图焦散着色器
+    console.log('✅ 使用优化的高度图焦散着色器');
     
     let causticsMaterial;
     
-    if (useTestShader) {
-      console.log('🔴 使用最简单测试着色器（纯红色输出）');
-      console.log('测试着色器详情:', {
-        vertexShaderLength: testVertexShader.length,
-        fragmentShaderLength: testFragmentShader.length,
-        hasVaryingVariables: testVertexShader.includes('varying'),
-        hasUniformVariables: testFragmentShader.includes('uniform')
-      });
-      
-      causticsMaterial = new THREE.ShaderMaterial({
-        vertexShader: testVertexShader,
-        fragmentShader: testFragmentShader,
-        side: THREE.DoubleSide
-      });
-      
-      console.log('测试材质创建完成:', {
-        materialType: causticsMaterial.type,
-        isShaderMaterial: causticsMaterial.isShaderMaterial,
-        hasUniforms: Object.keys(causticsMaterial.uniforms).length,
-        uniformKeys: Object.keys(causticsMaterial.uniforms),
-        side: causticsMaterial.side
-      });
-    } else {
-      console.log('使用完整焦散着色器');
+    {
+      console.log('创建焦散材质...');
       causticsMaterial = new THREE.ShaderMaterial({
         vertexShader: matchingVertexShader,
-        fragmentShader: simplifiedFragmentShader,
+        fragmentShader: causticsFragmentShader,
         uniforms: {
-          lightColor: { value: new THREE.Vector3(0.2, 1.0, 0.2) }, // 绿色光源
+          lightColor: { value: new THREE.Vector3(1.0, 1.0, 1.0) },
           lightPosition: { value: lightPosition },
-          refractiveIndex: { value: actualRefractiveIndex },
-          wallDistance: { value: distance }
+          refractiveIndex: { value: refractiveIndex },
+          wallDistance: { value: distance },
+          heightMap: { value: waterTexture },
+          heightMapResolution: { value: heightMapResolution }
         },
         side: THREE.DoubleSide
+      });
+      
+      console.log('焦散材质创建完成:', {
+        refractiveIndex: refractiveIndex,
+        wallDistance: distance,
+        heightMapResolution: heightMapResolution
       });
     }
     
@@ -1558,7 +1990,7 @@ const CausticProjection: React.FC<{
 
     // 添加详细的uniform调试信息
     console.log('焦散渲染调试信息:', {
-      shaderType: useTestShader ? 'test' : 'full',
+      shaderType: 'full',
       lightColor: lightColor,
       lightColorValue: [lightColor.x, lightColor.y, lightColor.z],
       lightColorHex: '#' + Math.round(lightColor.x * 255).toString(16).padStart(2, '0') + 
@@ -1575,7 +2007,6 @@ const CausticProjection: React.FC<{
       envTextureSize: `${envTexture.image.width}x${envTexture.image.height}`,
       blendingMode: causticsMaterial.blending,
       transparent: causticsMaterial.transparent,
-      useTestShader: useTestShader,
       waterGeometryVertices: wallGeometry.attributes.position.count
     });
     
@@ -1617,7 +2048,15 @@ const CausticProjection: React.FC<{
     lensGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
     
     // 正确设置面索引 - 使用Uint32Array支持大量顶点
-    const maxVertexIndex = Math.max(...geometry.faces.flat());
+    // 使用循环查找最大索引，避免扩展运算符导致的栈溢出
+    let maxVertexIndex = 0;
+    for (const face of geometry.faces) {
+      for (const index of face) {
+        if (index > maxVertexIndex) {
+          maxVertexIndex = index;
+        }
+      }
+    }
     const IndexArrayType = maxVertexIndex > 65535 ? Uint32Array : Uint16Array;
     
     console.log('索引数组类型选择:', {
@@ -1637,6 +2076,14 @@ const CausticProjection: React.FC<{
     lensGeometry.setIndex(new THREE.BufferAttribute(indices, 1));
     
     // 验证索引设置
+    // 使用循环查找最大最小索引值，避免栈溢出
+    let maxIndexValue = indices[0];
+    let minIndexValue = indices[0];
+    for (let i = 1; i < indices.length; i++) {
+      if (indices[i] > maxIndexValue) maxIndexValue = indices[i];
+      if (indices[i] < minIndexValue) minIndexValue = indices[i];
+    }
+    
     console.log('索引缓冲区验证:', {
       hasIndex: !!lensGeometry.index,
       indexCount: lensGeometry.index?.count || 0,
@@ -1644,10 +2091,10 @@ const CausticProjection: React.FC<{
       indexArrayType: indices.constructor.name,
       firstFewIndices: Array.from(indices.slice(0, 12)),
       lastFewIndices: Array.from(indices.slice(-12)),
-      maxIndexValue: Math.max(...indices),
-      minIndexValue: Math.min(...indices),
+      maxIndexValue: maxIndexValue,
+      minIndexValue: minIndexValue,
       vertexCount: geometry.vertices.length,
-      indexInRange: Math.max(...indices) < geometry.vertices.length
+      indexInRange: maxIndexValue < geometry.vertices.length
     });
     
     // 计算法向量和UV坐标
@@ -1709,29 +2156,63 @@ const CausticProjection: React.FC<{
       }
     });
     
-    // 创建使用焦散着色器的透镜网格
-    const lensMesh = new THREE.Mesh(lensGeometry, causticsMaterial);
-    lensMesh.position.set(0, 0, 0); // 透镜位于原点
+    // 渲染墙面用于焦散显示
+    console.log('✅ 创建墙面网格用于焦散渲染');
+    
+    const renderMesh = new THREE.Mesh(wallGeometry, causticsMaterial);
+    renderMesh.position.set(0, 0, -distance);
+    renderMesh.rotation.set(0, 0, 0);
+    scene.add(renderMesh);
+    
+    console.log('墙面网格已添加到场景:', {
+      vertices: wallGeometry.attributes.position.count,
+      position: renderMesh.position.toArray()
+    });
+    
+    // 验证墙面几何体
+    const uvAttribute = wallGeometry.attributes.uv;
+    if (uvAttribute) {
+      console.log('墙面UV验证:', {
+        uvCount: uvAttribute.count,
+        hasUV: true
+      });
+    }
+    
+    // 同时添加透镜几何体用于光线计算（使用基础材质，不可见）
+    const lensHelperMaterial = new THREE.MeshBasicMaterial({ 
+      visible: false // 透镜本身不渲染，只用于计算
+    });
+    const lensMesh = new THREE.Mesh(lensGeometry, lensHelperMaterial);
+    lensMesh.position.set(0, 0, 0);
     lensMesh.rotation.set(lensRotation || 0, 0, 0);
-    scene.add(lensMesh);
+    // 注意：不将透镜添加到场景中，因为我们只渲染墙面
     
     console.log('焦散渲染场景内容:', {
       totalObjects: scene.children.length,
-      lensMesh: !!scene.children.find(child => child === lensMesh),
+      renderMesh: !!scene.children.find(child => child === renderMesh),
       sceneChildren: scene.children.map(child => child.type),
-      lensMeshMaterial: lensMesh.material.type,
-      lensMeshUniforms: lensMesh.material.uniforms ? Object.keys(lensMesh.material.uniforms) : 'none'
+      renderMeshMaterial: renderMesh.material.type,
+      renderMeshUniforms: renderMesh.material.uniforms ? Object.keys(renderMesh.material.uniforms) : 'none'
     });
     
-    // 根据光源类型设置光源相机位置 - 统一使用lightSource.position
-    lightCamera.position.set(lightSource.position.x, lightSource.position.y, lightSource.position.z);
-    lightCamera.lookAt(0, 0, 0);
+    // 设置光源相机
+    lightCamera.position.set(0, 0, 100);
+    lightCamera.lookAt(0, 0, -distance);
     lightCamera.updateMatrixWorld();
     
     console.log('光源相机设置:', {
       lightType: lightSource.type,
-      position: lightCamera.position,
-      target: new THREE.Vector3(0, 0, 0)
+      position: lightCamera.position.toArray(),
+      target: [0, 0, -distance],
+      cameraLeft: lightCamera.left,
+      cameraRight: lightCamera.right,
+      cameraTop: lightCamera.top,
+      cameraBottom: lightCamera.bottom,
+      cameraNear: lightCamera.near,
+      cameraFar: lightCamera.far,
+      wallPosition: [0, 0, distance],
+      wallSize: `${wallWidth}x${wallHeight}`,
+      distanceFromCameraToWall: distance + 100
     });
     
     // 详细的相机和几何体位置调试
@@ -2022,9 +2503,9 @@ const CausticProjection: React.FC<{
     });
     
     // 检查几何体绑定状态
-    const renderMesh = scene.children[0] as THREE.Mesh;
-    if (renderMesh && renderMesh.geometry) {
-      const geometry = renderMesh.geometry;
+    const sceneMesh = scene.children[0] as THREE.Mesh;
+    if (sceneMesh && sceneMesh.geometry) {
+      const geometry = sceneMesh.geometry;
       console.log('几何体绑定状态:', {
         hasPosition: !!geometry.attributes.position,
         hasIndex: !!geometry.index,
@@ -2035,6 +2516,25 @@ const CausticProjection: React.FC<{
         visible: mesh.visible,
         frustumCulled: mesh.frustumCulled
       });
+    }
+    
+    // 清除渲染目标
+    renderer.clear(true, true, true);
+    console.log('已清除渲染目标（颜色+深度+模板）');
+    
+    // 在渲染前强制更新材质和纹理
+    if (renderMesh && renderMesh.material) {
+      const material = renderMesh.material as THREE.ShaderMaterial;
+      material.needsUpdate = true;
+      
+      // 强制更新高度图纹理
+      if (material.uniforms.heightMap && material.uniforms.heightMap.value) {
+        material.uniforms.heightMap.value.needsUpdate = true;
+        console.log('强制更新高度图纹理:', {
+          hasValue: !!material.uniforms.heightMap.value,
+          textureType: material.uniforms.heightMap.value.constructor.name
+        });
+      }
     }
     
     // 直接渲染场景
@@ -2060,26 +2560,28 @@ const CausticProjection: React.FC<{
     
     // 检查几何体是否实际被绘制
     if (renderMesh && renderMesh.geometry) {
-      const geometry = renderMesh.geometry;
-      const material = renderMesh.material as THREE.ShaderMaterial;
+      const renderGeometry = renderMesh.geometry;
+      const renderMaterial = renderMesh.material as THREE.ShaderMaterial;
       
       console.log('几何体渲染验证:', {
         meshInScene: scene.children.includes(renderMesh),
         meshVisible: renderMesh.visible,
-        geometryValid: !!geometry,
-        materialValid: !!material,
-        hasVertices: !!geometry.attributes.position,
-        hasIndices: !!geometry.index,
-        vertexCount: geometry.attributes.position?.count || 0,
-        indexCount: geometry.index?.count || 0,
-        triangleCount: (geometry.index?.count || 0) / 3,
-        materialType: material.type,
-        materialNeedsUpdate: material.needsUpdate
+        geometryValid: !!renderGeometry,
+        materialValid: !!renderMaterial,
+        hasVertices: !!renderGeometry.attributes.position,
+        hasIndices: !!renderGeometry.index,
+        vertexCount: renderGeometry.attributes.position?.count || 0,
+        indexCount: renderGeometry.index?.count || 0,
+        triangleCount: (renderGeometry.index?.count || 0) / 3,
+        materialType: renderMaterial.type,
+        materialNeedsUpdate: renderMaterial.needsUpdate
       });
     }
     
-    // 读取渲染结果进行验证
-    const pixels = new Uint8Array(4 * 16); // 读取4x4像素样本
+    // 读取完整的渲染结果
+    const renderWidth = causticsTarget.width;
+    const renderHeight = causticsTarget.height;
+    const pixels = new Uint8Array(renderWidth * renderHeight * 4); // 读取完整渲染结果
     
     // 检查readPixels前的WebGL状态
     console.log('readPixels前WebGL状态:', {
@@ -2087,6 +2589,8 @@ const CausticProjection: React.FC<{
       framebuffer: glContext.getParameter(glContext.FRAMEBUFFER_BINDING),
       viewport: glContext.getParameter(glContext.VIEWPORT),
       readBuffer: glContext.getParameter(glContext.READ_BUFFER),
+      renderSize: `${renderWidth}x${renderHeight}`,
+      pixelsSize: pixels.length,
       implementation: {
         vendor: glContext.getParameter(glContext.VENDOR),
         renderer: glContext.getParameter(glContext.RENDERER),
@@ -2095,7 +2599,7 @@ const CausticProjection: React.FC<{
     });
     
     try {
-      glContext.readPixels(0, 0, 4, 4, glContext.RGBA, glContext.UNSIGNED_BYTE, pixels);
+      glContext.readPixels(0, 0, renderWidth, renderHeight, glContext.RGBA, glContext.UNSIGNED_BYTE, pixels);
       console.log('渲染结果采样成功:', Array.from(pixels).slice(0, 16));
       
       // 检查readPixels后的WebGL状态
@@ -2110,10 +2614,13 @@ const CausticProjection: React.FC<{
                   'UNKNOWN_ERROR_' + postError
       });
       
-      // 分析颜色分布
+      // 分析颜色分布（从完整像素数据中采样分析）
       let whitePixels = 0, greenPixels = 0, blackPixels = 0, coloredPixels = 0;
       const samplePixels = [];
-      for (let i = 0; i < pixels.length; i += 4) {
+      const totalPixels = pixels.length / 4;
+      const sampleStep = Math.max(1, Math.floor(totalPixels / 1000)); // 采样约1000个像素进行分析
+      
+      for (let i = 0; i < pixels.length; i += 4 * sampleStep) {
         const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2], a = pixels[i + 3];
         if (samplePixels.length < 10) {
           samplePixels.push({ r, g, b, a, index: i/4 });
@@ -2128,47 +2635,18 @@ const CausticProjection: React.FC<{
         绿色像素: greenPixels, 
         黑色像素: blackPixels, 
         彩色像素: coloredPixels,
-        总像素: pixels.length / 4,
+        总像素: totalPixels,
+        采样像素: Math.floor(totalPixels / sampleStep),
         渲染成功: (whitePixels + greenPixels + coloredPixels) > 0,
         像素样本: samplePixels,
         问题诊断: greenPixels > 0 ? '输出绿色像素，可能是光源颜色或着色器问题' : '正常'
       });
       
-      // 如果渲染结果全黑，强制生成测试纹理
-      if (blackPixels === pixels.length / 4) {
-        console.warn('检测到全黑渲染结果，生成测试纹理');
-        // 创建一个简单的测试纹理
-        const testCanvas = document.createElement('canvas');
-        testCanvas.width = 512;
-        testCanvas.height = 512;
-        const testCtx = testCanvas.getContext('2d');
-        if (testCtx) {
-          // 绘制简单的焦散图案
-          testCtx.fillStyle = '#000000';
-          testCtx.fillRect(0, 0, 512, 512);
-          testCtx.fillStyle = '#ffffff';
-          for (let i = 0; i < 20; i++) {
-            const x = Math.random() * 512;
-            const y = Math.random() * 512;
-            const radius = Math.random() * 30 + 10;
-            testCtx.beginPath();
-            testCtx.arc(x, y, radius, 0, Math.PI * 2);
-            testCtx.fill();
-          }
-          
-          // 将测试纹理应用到渲染目标 - 使用标准方法
-          const testTexture = new THREE.CanvasTexture(testCanvas);
-          testTexture.needsUpdate = true;
-          testTexture.flipY = false;
-          testTexture.generateMipmaps = false;
-          testTexture.minFilter = THREE.LinearFilter;
-          testTexture.magFilter = THREE.LinearFilter;
-          testTexture.wrapS = THREE.ClampToEdgeWrapping;
-          testTexture.wrapT = THREE.ClampToEdgeWrapping;
-          
-          setCausticsTexture(testTexture);
-          console.log('应用测试纹理完成');
-        }
+      // 如果渲染结果基本全黑（超过95%的采样像素是黑色），记录警告但继续使用实际渲染结果
+      const sampledPixels = Math.floor(totalPixels / sampleStep);
+      const blackRatio = blackPixels / sampledPixels;
+      if (blackRatio > 0.95) {
+        console.warn('检测到渲染结果几乎全黑，黑色像素比例:', (blackRatio * 100).toFixed(1) + '%', '- 将继续使用实际渲染结果');
       }
     } catch (error) {
       console.warn('readPixels失败:', error);
@@ -2206,11 +2684,18 @@ const CausticProjection: React.FC<{
         
         // 如果有有效的像素数据，使用它
         if (pixels && pixels.length > 0) {
+          console.log('使用实际渲染的像素数据创建纹理:', {
+            pixelsLength: pixels.length,
+            imageDataLength: imageData.data.length,
+            expectedSize: canvas.width * canvas.height * 4,
+            sampleData: Array.from(pixels).slice(0, 20)
+          });
           // 将RGBA像素数据复制到ImageData
           for (let i = 0; i < Math.min(pixels.length, imageData.data.length); i++) {
             imageData.data[i] = pixels[i];
           }
         } else {
+          console.warn('pixels数据无效，使用测试图案');
           // 创建测试图案
           for (let y = 0; y < canvas.height; y++) {
             for (let x = 0; x < canvas.width; x++) {
@@ -2323,30 +2808,43 @@ const CausticProjection: React.FC<{
     
     // 将渲染结果保存到store
     try {
-      // 创建一个临时canvas来获取纹理的图像数据
-      const canvas = document.createElement('canvas');
-      canvas.width = 512;
-      canvas.height = 512;
+      // 直接使用已经渲染好的像素数据创建图片
+      const saveCanvas = document.createElement('canvas');
+      saveCanvas.width = renderWidth;
+      saveCanvas.height = renderHeight;
+      const saveCtx = saveCanvas.getContext('2d');
       
-      // 从WebGL纹理获取图像数据
-      const tempRenderer = new THREE.WebGLRenderer({ preserveDrawingBuffer: true });
-      tempRenderer.setSize(512, 512);
-      const tempScene = new THREE.Scene();
-      const tempCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+      if (saveCtx && pixels) {
+        // 创建ImageData并填充像素数据
+        const saveImageData = saveCtx.createImageData(renderWidth, renderHeight);
+        
+        // 复制像素数据，同时翻转Y轴（WebGL坐标系与Canvas不同）
+        for (let y = 0; y < renderHeight; y++) {
+          for (let x = 0; x < renderWidth; x++) {
+            const sourceY = renderHeight - 1 - y; // 翻转Y轴
+            const sourceIndex = (sourceY * renderWidth + x) * 4;
+            const targetIndex = (y * renderWidth + x) * 4;
+            
+            saveImageData.data[targetIndex] = pixels[sourceIndex];       // R
+            saveImageData.data[targetIndex + 1] = pixels[sourceIndex + 1]; // G
+            saveImageData.data[targetIndex + 2] = pixels[sourceIndex + 2]; // B
+            saveImageData.data[targetIndex + 3] = pixels[sourceIndex + 3]; // A
+          }
+        }
+        
+        // 绘制到canvas
+        saveCtx.putImageData(saveImageData, 0, 0);
+      }
       
-      // 创建一个平面来显示纹理
-      const planeGeometry = new THREE.PlaneGeometry(2, 2);
-      const planeMaterial = new THREE.MeshBasicMaterial({ map: finalTexture });
-      const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-      tempScene.add(plane);
+      // 转换为DataURL
+      const imageData = saveCanvas.toDataURL('image/png');
       
-      tempRenderer.render(tempScene, tempCamera);
-      const imageData = tempRenderer.domElement.toDataURL('image/png');
-      
-      // 清理临时资源
-      tempRenderer.dispose();
-      planeGeometry.dispose();
-      planeMaterial.dispose();
+      console.log('图片保存调试:', {
+        hasPixels: !!pixels,
+        pixelsLength: pixels?.length || 0,
+        imageDataLength: imageData.length,
+        imageDataPreview: imageData.substring(0, 100)
+      });
       
       // 保存渲染结果到store
       const renderResult = {
@@ -2894,25 +3392,20 @@ export const LensViewer: React.FC = () => {
                     )}
                   </div>
                   
-                  {/* 光源设置 */}
+                  {/* 光源设置 - 固定为平行光 */}
                   <div>
                     <div style={{ fontSize: '12px', fontWeight: 500, marginBottom: '8px' }}>光源类型</div>
-                    <Select
-                      size="small"
-                      value={parameters.lightSource.type}
-                      onChange={(value) => {
-                         const newLightSource = { ...parameters.lightSource, type: value };
-                         if (value === 'point') {
-                           // 确保点光源在透镜前方（正Z轴），与透镜中心在XY平面对齐
-                           newLightSource.position = { x: 0, y: 0, z: 150 };
-                         }
-                         setParameters({ lightSource: newLightSource });
-                       }}
-                      style={{ width: '100%', marginBottom: '8px' }}
-                    >
-                      <Select.Option value="parallel">平行光</Select.Option>
-                      <Select.Option value="point">点光源</Select.Option>
-                    </Select>
+                    <div style={{ 
+                      padding: '4px 11px', 
+                      background: '#f5f5f5', 
+                      border: '1px solid #d9d9d9',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      color: '#000',
+                      marginBottom: '8px'
+                    }}>
+                      平行光（固定）
+                    </div>
                   </div>
                   
                   {/* 光照强度 */}
