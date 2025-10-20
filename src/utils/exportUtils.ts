@@ -297,47 +297,64 @@ export class STEPExporter {
 
     console.log(`开始生成STEP文件，顶点数: ${vertices.length}, 面数: ${faces.length}`);
     
+    // 使用数组拼接以避免字符串长度限制
+    const lines: string[] = [];
+    
     // 标准STEP文件头部
-    let step = 'ISO-10303-21;\n';
-    step += 'HEADER;\n';
-    step += 'FILE_DESCRIPTION((\'Caustic Lens Model\'), \'2;1\');\n';
-    step += `FILE_NAME(\'${filename}\', \'${new Date().toISOString()}\', (\'Caustic Lens Designer\'), (\'\'), \'\', \'\', \'\');\n`;
-    step += 'FILE_SCHEMA((\'CONFIG_CONTROL_DESIGN\'));\n';
-    step += 'ENDSEC;\n';
-    step += 'DATA;\n';
+    lines.push('ISO-10303-21;');
+    lines.push('HEADER;');
+    lines.push('FILE_DESCRIPTION((\'Caustic Lens Model\'), \'2;1\');');
+    lines.push(`FILE_NAME(\'${filename}\', \'${new Date().toISOString()}\', (\'Caustic Lens Designer\'), (\'\'), \'\', \'\', \'\');`);
+    lines.push('FILE_SCHEMA((\'CONFIG_CONTROL_DESIGN\'));');
+    lines.push('ENDSEC;');
+    lines.push('DATA;');
     
     let id = 1;
     
     // 基础设置
-    step += `#${id++} = APPLICATION_CONTEXT(\'configuration controlled 3d designs of mechanical parts and assemblies\');\n`;
-    step += `#${id++} = APPLICATION_PROTOCOL_DEFINITION(\'international standard\', \'config_control_design\', 1994, #1);\n`;
-    step += `#${id++} = PRODUCT(\'CausticLens\', \'Caustic Lens\', \'\', (#4));\n`;
-    step += `#${id++} = PRODUCT_CONTEXT(\'\', #1, \'mechanical\');\n`;
-    step += `#${id++} = PRODUCT_DEFINITION_FORMATION(\'\', \'\', #3);\n`;
-    step += `#${id++} = PRODUCT_DEFINITION(\'design\', \'\', #5, #7);\n`;
-    step += `#${id++} = PRODUCT_DEFINITION_CONTEXT(\'part definition\', #1, \'design\');\n`;
+    lines.push(`#${id++} = APPLICATION_CONTEXT(\'configuration controlled 3d designs of mechanical parts and assemblies\');`);
+    lines.push(`#${id++} = APPLICATION_PROTOCOL_DEFINITION(\'international standard\', \'config_control_design\', 1994, #1);`);
+    lines.push(`#${id++} = PRODUCT(\'CausticLens\', \'Caustic Lens\', \'\', (#4));`);
+    lines.push(`#${id++} = PRODUCT_CONTEXT(\'\', #1, \'mechanical\');`);
+    lines.push(`#${id++} = PRODUCT_DEFINITION_FORMATION(\'\', \'\', #3);`);
+    lines.push(`#${id++} = PRODUCT_DEFINITION(\'design\', \'\', #5, #7);`);
+    lines.push(`#${id++} = PRODUCT_DEFINITION_CONTEXT(\'part definition\', #1, \'design\');`);
     
     // 单位和上下文
-    step += `#${id++} = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );\n`;
-    step += `#${id++} = ( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#10)) GLOBAL_UNIT_ASSIGNED_CONTEXT((#8)) REPRESENTATION_CONTEXT(\'3D\',\'\') );\n`;
-    step += `#${id++} = UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),#8,\'distance_accuracy_value\',\'confusion accuracy\');\n`;
+    lines.push(`#${id++} = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );`);
+    lines.push(`#${id++} = ( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#10)) GLOBAL_UNIT_ASSIGNED_CONTEXT((#8)) REPRESENTATION_CONTEXT(\'3D\',\'\') );`);
+    lines.push(`#${id++} = UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),#8,\'distance_accuracy_value\',\'confusion accuracy\');`);
     
     // 坐标系
-    step += `#${id++} = CARTESIAN_POINT(\'\', (0.,0.,0.));\n`;
-    step += `#${id++} = DIRECTION(\'\', (0.,0.,1.));\n`;
-    step += `#${id++} = DIRECTION(\'\', (1.,0.,0.));\n`;
-    step += `#${id++} = AXIS2_PLACEMENT_3D(\'\', #11, #12, #13);\n`;
+    lines.push(`#${id++} = CARTESIAN_POINT(\'\', (0.,0.,0.));`);
+    lines.push(`#${id++} = DIRECTION(\'\', (0.,0.,1.));`);
+    lines.push(`#${id++} = DIRECTION(\'\', (1.,0.,0.));`);
+    lines.push(`#${id++} = AXIS2_PLACEMENT_3D(\'\', #11, #12, #13);`);
     
-    // 创建所有顶点的CARTESIAN_POINT
-    const pointIds: number[] = [];
-    for (const vertex of vertices) {
-      const pointId = id++;
-      pointIds.push(pointId);
-      step += `#${pointId} = CARTESIAN_POINT(\'\', (${vertex.x.toFixed(6)}, ${vertex.y.toFixed(6)}, ${vertex.z.toFixed(6)}));\n`;
+    // 先收集实际使用的顶点索引
+    const usedVertices = new Set<number>();
+    for (const face of faces) {
+      if (face[0] < vertices.length && face[1] < vertices.length && face[2] < vertices.length) {
+        usedVertices.add(face[0]);
+        usedVertices.add(face[1]);
+        usedVertices.add(face[2]);
+      }
     }
+    
+    // 只创建实际使用的顶点的CARTESIAN_POINT
+    const pointIds: number[] = new Array(vertices.length);
+    for (const vertexIndex of usedVertices) {
+      const vertex = vertices[vertexIndex];
+      const pointId = id++;
+      pointIds[vertexIndex] = pointId;
+      lines.push(`#${pointId} = CARTESIAN_POINT(\'\', (${vertex.x.toFixed(6)}, ${vertex.y.toFixed(6)}, ${vertex.z.toFixed(6)}));`);
+    }
+    
+    console.log(`实际使用顶点数: ${usedVertices.size} / ${vertices.length}`);
     
     // 创建三角面网格
     const faceIds: number[] = [];
+    
     for (let i = 0; i < faces.length; i++) {
       const face = faces[i];
       if (face[0] >= vertices.length || face[1] >= vertices.length || face[2] >= vertices.length) {
@@ -365,49 +382,62 @@ export class STEPExporter {
       
       // 创建面的几何定义
       const normalDirId = id++;
-      step += `#${normalDirId} = DIRECTION(\'\', (${normal.x.toFixed(6)}, ${normal.y.toFixed(6)}, ${normal.z.toFixed(6)}));\n`;
+      lines.push(`#${normalDirId} = DIRECTION(\'\', (${normal.x.toFixed(6)}, ${normal.y.toFixed(6)}, ${normal.z.toFixed(6)}));`);
       
       const axisId = id++;
-      step += `#${axisId} = AXIS2_PLACEMENT_3D(\'\', #${pointIds[face[0]]}, #${normalDirId}, #13);\n`;
+      lines.push(`#${axisId} = AXIS2_PLACEMENT_3D(\'\', #${pointIds[face[0]]}, #${normalDirId}, #13);`);
       
       const planeId = id++;
-      step += `#${planeId} = PLANE(\'\', #${axisId});\n`;
+      lines.push(`#${planeId} = PLANE(\'\', #${axisId});`);
       
-      // 创建三角面的边界
-      const polylineId = id++;
-      step += `#${polylineId} = POLYLINE(\'\', (#${pointIds[face[0]]}, #${pointIds[face[1]]}, #${pointIds[face[2]]}, #${pointIds[face[0]]}));\n`;
+      // 使用简化的POLY_LOOP方法，避免创建过多实体
+      const polyLoopId = id++;
+      lines.push(`#${polyLoopId} = POLY_LOOP(\'\', (#${pointIds[face[0]]}, #${pointIds[face[1]]}, #${pointIds[face[2]]}));`);
       
       const outerBoundId = id++;
-      step += `#${outerBoundId} = FACE_OUTER_BOUND(\'\', #${polylineId}, .T.);\n`;
+      lines.push(`#${outerBoundId} = FACE_OUTER_BOUND(\'\', #${polyLoopId}, .T.);`);
       
       const faceId = id++;
-      step += `#${faceId} = ADVANCED_FACE(\'\', (#${outerBoundId}), #${planeId}, .T.);\n`;
+      lines.push(`#${faceId} = ADVANCED_FACE(\'\', (#${outerBoundId}), #${planeId}, .T.);`);
       faceIds.push(faceId);
     }
     
     // 创建实体
     const shellId = id++;
-    step += `#${shellId} = CLOSED_SHELL(\'\', (${faceIds.map(fid => `#${fid}`).join(', ')}));\n`;
+    lines.push(`#${shellId} = CLOSED_SHELL(\'\', (${faceIds.map(fid => `#${fid}`).join(', ')}));`);
     
     const solidId = id++;
-    step += `#${solidId} = MANIFOLD_SOLID_BREP(\'\', #${shellId});\n`;
+    lines.push(`#${solidId} = MANIFOLD_SOLID_BREP(\'\', #${shellId});`);
     
     // 形状表示
     const shapeRepId = id++;
-    step += `#${shapeRepId} = SHAPE_REPRESENTATION(\'\', (#${solidId}), #9);\n`;
+    lines.push(`#${shapeRepId} = SHAPE_REPRESENTATION(\'\', (#${solidId}), #9);`);
     
     // 产品定义形状
     const prodDefShapeId = id++;
-    step += `#${prodDefShapeId} = PRODUCT_DEFINITION_SHAPE(\'\', \'\', #6);\n`;
+    lines.push(`#${prodDefShapeId} = PRODUCT_DEFINITION_SHAPE(\'\', \'\', #6);`);
     
-    step += `#${id++} = SHAPE_DEFINITION_REPRESENTATION(#${prodDefShapeId}, #${shapeRepId});\n`;
+    lines.push(`#${id++} = SHAPE_DEFINITION_REPRESENTATION(#${prodDefShapeId}, #${shapeRepId});`);
     
     // 文件结尾
-    step += 'ENDSEC;\n';
-    step += 'END-ISO-10303-21;\n';
+    lines.push('ENDSEC;');
+    lines.push('END-ISO-10303-21;');
     
-    console.log(`STEP文件生成完成，总实体数: ${id - 1}`);
-    return step;
+    console.log(`STEP文件生成完成，总实体数: ${id - 1}, 行数: ${lines.length}`);
+    
+    // 分批拼接以避免超大字符串问题
+    if (lines.length > 100000) {
+      console.log('使用分批拼接模式处理大文件');
+      const chunkSize = 50000;
+      let result = '';
+      for (let i = 0; i < lines.length; i += chunkSize) {
+        const chunk = lines.slice(i, i + chunkSize);
+        result += chunk.join('\n') + (i + chunkSize < lines.length ? '\n' : '');
+      }
+      return result;
+    }
+    
+    return lines.join('\n');
   }
 }
 
