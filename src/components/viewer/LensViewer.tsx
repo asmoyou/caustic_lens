@@ -570,7 +570,7 @@ const LightSourceVisualization: React.FC<{ lightSource: any }> = ({ lightSource 
   );
 };
 
-// 新的焦散投影组件 - 基于threejs-caustics-master重新实现
+// 新的焦散投影组件 - 直接使用迭代图像
 const CausticProjection: React.FC<{
   show: boolean;
   distance: number;
@@ -588,7 +588,8 @@ const CausticProjection: React.FC<{
   renderTrigger?: number;
   onCalculatingChange?: (calculating: boolean) => void;
   addCausticsRenderResult?: (result: any) => void;
-}> = ({ show, distance, intensity, lensWidth, lensHeight, geometry, targetShape, resolution, refractiveIndex, focalLength, lensRotation = 0, isAutoRotating = false, lightSource, renderTrigger = 0, onCalculatingChange, addCausticsRenderResult }) => {
+  iterationImages?: string[]; // 🎯 新增：迭代图像数组
+}> = ({ show, distance, intensity, lensWidth, lensHeight, geometry, targetShape, resolution, refractiveIndex, focalLength, lensRotation = 0, isAutoRotating = false, lightSource, renderTrigger = 0, onCalculatingChange, addCausticsRenderResult, iterationImages = [] }) => {
   const [isCalculating, setIsCalculating] = useState(false);
   const [causticsTexture, setCausticsTexture] = useState<THREE.Texture | null>(null);
   
@@ -700,28 +701,91 @@ const CausticProjection: React.FC<{
     stateSettersRef.current.onCalculatingChange?.(true);
     
     try {
+      // 🎯 优先使用迭代图像，直接加载而不进行复杂计算
+      if (iterationImages && iterationImages.length > 0) {
+        console.log(`✓ 找到 ${iterationImages.length} 张迭代图像，直接使用最后一张`);
+        stateSettersRef.current.setRenderProgress(20);
+        stateSettersRef.current.setRenderStage('加载迭代图像...');
+        
+        const lastIterationImage = iterationImages[iterationImages.length - 1];
+        
+        // 创建Image对象加载base64图像
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => {
+            console.log('✓ 迭代图像加载成功:', { width: img.width, height: img.height });
+            resolve();
+          };
+          img.onerror = (error) => {
+            console.error('✗ 迭代图像加载失败:', error);
+            reject(error);
+          };
+          img.src = lastIterationImage;
+        });
+        
+        stateSettersRef.current.setRenderProgress(70);
+        stateSettersRef.current.setRenderStage('创建焦散纹理...');
+        
+        // 直接从图像创建THREE.js纹理
+        const texture = new THREE.Texture(img);
+        texture.needsUpdate = true;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        
+        console.log('✓ 焦散纹理创建完成 (来自迭代图像)');
+        
+        stateSettersRef.current.setRenderProgress(100);
+        stateSettersRef.current.setRenderStage('完成!');
+        stateSettersRef.current.setCausticsTexture(texture);
+        stateSettersRef.current.setHasRendered(true);
+        
+        // 保存渲染结果
+        if (addCausticsRenderResult) {
+          addCausticsRenderResult({
+            id: `caustics_${Date.now()}`,
+            timestamp: Date.now(),
+            imageData: lastIterationImage,
+            parameters: {
+              lensWidth, lensHeight, focalLength,
+              targetDistance: distance,
+              material: refractiveIndex === 1.49 ? 'acrylic' : 'glass'
+            },
+            renderTime: Date.now() - startTime,
+            status: 'success' as const
+          });
+        }
+        
+        stateSettersRef.current.setIsCalculating(false);
+        stateSettersRef.current.onCalculatingChange?.(false);
+        console.log(`✓ 焦散渲染完成 (使用迭代图像，耗时 ${Date.now() - startTime}ms)`);
+        return; // 🎯 直接返回，跳过下面所有复杂计算
+      }
+      
+      // 如果没有迭代图像，继续原有的复杂计算流程
+      console.log('⚠️ 未找到迭代图像，使用传统焦散仿真计算');
+      
       console.log('几何体检查:', {
         hasGeometry: !!geometry,
-      hasVertices: !!geometry?.vertices,
-      verticesLength: geometry?.vertices?.length || 0
-    });
+        hasVertices: !!geometry?.vertices,
+        verticesLength: geometry?.vertices?.length || 0
+      });
     
-    if (!geometry || !geometry.vertices || geometry.vertices.length === 0) {
-      console.log('几何体验证失败，退出计算');
-      return;
-    }
+      if (!geometry || !geometry.vertices || geometry.vertices.length === 0) {
+        console.log('几何体验证失败，退出计算');
+        return;
+      }
 
-    // 检查计算优化设置
-    console.log('开始焦散计算，将根据顶点数量自动选择最优计算方式');
-
-    console.log('开始焦散计算...');
-    stateSettersRef.current.setIsCalculating(true);
-    stateSettersRef.current.setRenderProgress(0);
-    stateSettersRef.current.setRenderStage('初始化渲染器...');
-    stateSettersRef.current.setHasRendered(false);
+      console.log('开始焦散计算...');
+      stateSettersRef.current.setIsCalculating(true);
+      stateSettersRef.current.setRenderProgress(0);
+      stateSettersRef.current.setRenderStage('初始化渲染器...');
+      stateSettersRef.current.setHasRendered(false);
     
-    // 模拟异步处理以显示进度
-    await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 100));
     
     stateSettersRef.current.setRenderProgress(10);
     stateSettersRef.current.setRenderStage('创建渲染器...');
@@ -3172,7 +3236,7 @@ const WebGLErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children 
 };
 
 export const LensViewer: React.FC = () => {
-  const { geometry, isProcessing, currentImage, parameters, targetShape, setParameters, addCausticsRenderResult } = useProjectStore();
+  const { geometry, isProcessing, currentImage, parameters, targetShape, setParameters, addCausticsRenderResult, iterationImages } = useProjectStore();
   const [lensRotation, setLensRotation] = useState(0);
   const [causticsRenderTrigger, setCausticsRenderTrigger] = useState(0);
   const [isRenderButtonDisabled, setIsRenderButtonDisabled] = useState(false);
@@ -3317,6 +3381,7 @@ export const LensViewer: React.FC = () => {
                     renderTrigger={causticsRenderTrigger}
                     onCalculatingChange={setIsCalculating}
                     addCausticsRenderResult={addCausticsRenderResult}
+                    iterationImages={iterationImages}
                   />
                 )}
                 {/* 移除Environment组件避免HDR资源请求导致的网络问题 */}
