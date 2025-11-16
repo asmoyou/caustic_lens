@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Layout, Typography, Space, Card, Row, Col, Tabs, Button } from 'antd';
-import { SettingOutlined, UploadOutlined, EyeOutlined, FileTextOutlined, DownloadOutlined, BugOutlined } from '@ant-design/icons';
+import { SettingOutlined, UploadOutlined, EyeOutlined, FileTextOutlined, DownloadOutlined, BugOutlined, ShopOutlined } from '@ant-design/icons';
 import { LensViewer } from './components/viewer/LensViewer';
 import { CausticsRenderArea } from './components/viewer/CausticsRenderArea';
 import { ImageUpload } from './components/upload/ImageUpload';
@@ -150,23 +150,44 @@ function App() {
                {isProcessing && <Typography.Text style={{ fontSize: '14px', fontWeight: 500, color: '#1890ff' }}>⚙️ 正在处理...</Typography.Text>}
             </Space>
             
-            <Button
-              type="primary"
-              icon={<FileTextOutlined />}
-              onClick={() => setReportDialogVisible(true)}
-              disabled={!geometry}
-              size="large"
-              style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                border: 'none',
-                borderRadius: '8px',
-                height: '40px',
-                fontWeight: 500,
-                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
-              }}
-            >
-              生成报告
-            </Button>
+            <Space size="middle">
+              {geometry && (
+                <Button
+                  type="default"
+                  icon={<ShopOutlined />}
+                  onClick={() => window.open('https://www.asmo.top/', '_blank')}
+                  size="large"
+                  style={{
+                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    height: '40px',
+                    fontWeight: 500,
+                    color: '#fff',
+                    boxShadow: '0 4px 15px rgba(245, 87, 108, 0.4)'
+                  }}
+                >
+                  需要代理加工？
+                </Button>
+              )}
+              <Button
+                type="primary"
+                icon={<FileTextOutlined />}
+                onClick={() => setReportDialogVisible(true)}
+                disabled={!geometry}
+                size="large"
+                style={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  height: '40px',
+                  fontWeight: 500,
+                  boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+                }}
+              >
+                生成报告
+              </Button>
+            </Space>
           </div>
           
           <Space direction="vertical" style={{ width: '100%' }} size="large">

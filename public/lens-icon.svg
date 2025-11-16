@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <!-- 背景渐变 - Apple 风格的柔和色调 -->
+    <radialGradient id="lensBaseGradient" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" style="stop-color:#4A90E2;stop-opacity:0.95" />
+      <stop offset="50%" style="stop-color:#7B68EE;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#9370DB;stop-opacity:0.85" />
+    </radialGradient>
+    
+    <!-- 高光渐变 - 模拟玻璃表面的反射 -->
+    <linearGradient id="lensHighlight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:0.6" />
+      <stop offset="30%" style="stop-color:#FFFFFF;stop-opacity:0.3" />
+      <stop offset="60%" style="stop-color:#FFFFFF;stop-opacity:0.1" />
+      <stop offset="100%" style="stop-color:#FFFFFF;stop-opacity:0" />
+    </linearGradient>
+    
+    <!-- 顶部高光 - 模拟光源照射 -->
+    <radialGradient id="topHighlight" cx="40%" cy="35%" r="35%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:0.8" />
+      <stop offset="50%" style="stop-color:#FFFFFF;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#FFFFFF;stop-opacity:0" />
+    </radialGradient>
+    
+    <!-- 边缘高光 - 模拟玻璃边缘的亮线 -->
+    <linearGradient id="edgeHighlight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:0.5" />
+      <stop offset="50%" style="stop-color:#FFFFFF;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#FFFFFF;stop-opacity:0.5" />
+    </linearGradient>
+    
+    <!-- 阴影效果 -->
+    <filter id="softShadow">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+      <feOffset dx="0" dy="2" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- 内部光晕 -->
+    <radialGradient id="innerGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:0.4" />
+      <stop offset="70%" style="stop-color:#FFFFFF;stop-opacity:0.1" />
+      <stop offset="100%" style="stop-color:#FFFFFF;stop-opacity:0" />
+    </radialGradient>
+  </defs>
+  
+  <!-- 背景阴影 -->
+  <ellipse cx="50" cy="52" rx="38" ry="32" fill="#000000" opacity="0.1" filter="url(#softShadow)"/>
+  
+  <!-- 透镜主体 - 双凸透镜形状 -->
+  <path d="M 25 50 
+           Q 25 30 40 30 
+           Q 50 28 60 30 
+           Q 75 30 75 50 
+           Q 75 70 60 70 
+           Q 50 72 40 70 
+           Q 25 70 25 50 Z" 
+        fill="url(#lensBaseGradient)" 
+        filter="url(#softShadow)"/>
+  
+  <!-- 透镜顶部表面高光 -->
+  <ellipse cx="50" cy="35" rx="22" ry="12" fill="url(#topHighlight)"/>
+  
+  <!-- 透镜整体高光覆盖 -->
+  <path d="M 25 50 
+           Q 25 30 40 30 
+           Q 50 28 60 30 
+           Q 75 30 75 50 
+           Q 75 70 60 70 
+           Q 50 72 40 70 
+           Q 25 70 25 50 Z" 
+        fill="url(#lensHighlight)"/>
+  
+  <!-- 顶部边缘高光 -->
+  <path d="M 30 35 Q 40 30 50 32 Q 60 30 70 35" 
+        fill="none" 
+        stroke="url(#edgeHighlight)" 
+        stroke-width="1.5" 
+        opacity="0.9"
+        stroke-linecap="round"/>
+  
+  <!-- 底部边缘高光 -->
+  <path d="M 30 65 Q 40 70 50 68 Q 60 70 70 65" 
+        fill="none" 
+        stroke="url(#edgeHighlight)" 
+        stroke-width="1" 
+        opacity="0.6"
+        stroke-linecap="round"/>
+  
+  <!-- 中心光晕 -->
+  <ellipse cx="50" cy="50" rx="18" ry="15" fill="url(#innerGlow)"/>
+  
+  <!-- 中心焦点高光 -->
+  <circle cx="50" cy="50" r="3" fill="#FFFFFF" opacity="0.9">
+    <animate attributeName="opacity" values="0.9;0.6;0.9" dur="3s" repeatCount="indefinite"/>
+  </circle>
+  
+  <!-- 左侧光线折射效果 - 更精致的光线 -->
+  <g opacity="0.4">
+    <path d="M 15 35 Q 30 38 35 42" 
+          fill="none" 
+          stroke="#FFFFFF" 
+          stroke-width="1" 
+          stroke-linecap="round" 
+          opacity="0.6"/>
+    <path d="M 15 50 Q 30 50 35 50" 
+          fill="none" 
+          stroke="#FFFFFF" 
+          stroke-width="1.2" 
+          stroke-linecap="round" 
+          opacity="0.7"/>
+    <path d="M 15 65 Q 30 62 35 58" 
+          fill="none" 
+          stroke="#FFFFFF" 
+          stroke-width="1" 
+          stroke-linecap="round" 
+          opacity="0.6"/>
+  </g>
+  
+  <!-- 右侧光线折射效果 -->
+  <g opacity="0.4">
+    <path d="M 65 42 Q 70 38 85 35" 
+          fill="none" 
+          stroke="#FFFFFF" 
+          stroke-width="1" 
+          stroke-linecap="round" 
+          opacity="0.6"/>
+    <path d="M 65 50 Q 70 50 85 50" 
+          fill="none" 
+          stroke="#FFFFFF" 
+          stroke-width="1.2" 
+          stroke-linecap="round" 
+          opacity="0.7"/>
+    <path d="M 65 58 Q 70 62 85 65" 
+          fill="none" 
+          stroke="#FFFFFF" 
+          stroke-width="1" 
+          stroke-linecap="round" 
+          opacity="0.6"/>
+  </g>
+</svg>
