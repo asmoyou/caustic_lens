@@ -1,27 +1,21 @@
 import React, { useState } from 'react';
 import { Layout, Typography, Space, Card, Row, Col, Tabs, Button } from 'antd';
-import { SettingOutlined, UploadOutlined, EyeOutlined, FileTextOutlined, DownloadOutlined, BugOutlined, ShopOutlined } from '@ant-design/icons';
+import { SettingOutlined, UploadOutlined, EyeOutlined, FileTextOutlined, DownloadOutlined, ShopOutlined } from '@ant-design/icons';
 import { LensViewer } from './components/viewer/LensViewer';
 import { CausticsRenderArea } from './components/viewer/CausticsRenderArea';
 import { ImageUpload } from './components/upload/ImageUpload';
 import { ParameterPanel } from './components/controls/ParameterPanel';
 import { ExportPanel } from './components/export/ExportPanel';
 import { ReportDialog } from './components/report/ReportDialog';
-import { DiagnosticPage } from './pages/DiagnosticPage';
 import { useProjectStore } from './stores/projectStore';
 import './styles/custom.css';
 
-const { Header, Content, Sider } = Layout;
+const { Header, Content, Sider, Footer } = Layout;
 const { Title } = Typography;
 
 function App() {
   const { currentImage, geometry, isProcessing } = useProjectStore();
   const [reportDialogVisible, setReportDialogVisible] = useState(false);
-  const [currentPage, setCurrentPage] = useState<'main' | 'diagnostic'>('main');
-
-  if (currentPage === 'diagnostic') {
-    return <DiagnosticPage onBack={() => setCurrentPage('main')} />;
-  }
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -37,19 +31,6 @@ function App() {
           🔍 Caustic Lens Designer
         </Title>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Button 
-            type="text" 
-            icon={<BugOutlined />} 
-            onClick={() => setCurrentPage('diagnostic')}
-            style={{ 
-              color: '#fff', 
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: '6px',
-              fontWeight: 500
-            }}
-          >
-            诊断工具
-          </Button>
           <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: 500 }}>
             焦散透镜设计工具
           </div>
@@ -238,6 +219,29 @@ function App() {
           </Space>
         </Content>
       </Layout>
+      
+      <Footer style={{ 
+        textAlign: 'center', 
+        background: '#fafafa',
+        borderTop: '1px solid #e8e8e8',
+        padding: '16px 24px'
+      }}>
+        <div style={{ color: '#666', fontSize: '14px' }}>
+          © 2025 小白客 - 焦散透镜应用 | 
+          <a 
+            href="https://www.asmo.top/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            style={{ 
+              color: '#667eea', 
+              marginLeft: '8px',
+              textDecoration: 'none'
+            }}
+          >
+            杂货铺
+          </a>
+        </div>
+      </Footer>
       
       <ReportDialog
         visible={reportDialogVisible}
