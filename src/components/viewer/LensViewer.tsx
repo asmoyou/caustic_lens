@@ -3241,6 +3241,18 @@ export const LensViewer: React.FC = () => {
   const [causticsRenderTrigger, setCausticsRenderTrigger] = useState(0);
   const [isRenderButtonDisabled, setIsRenderButtonDisabled] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // 检测移动端
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
   
   // 添加调试日志
   useEffect(() => {
@@ -3419,20 +3431,47 @@ export const LensViewer: React.FC = () => {
                 </div>
               )}
               
-              {/* 3D视图控制面板 */}
-              <Card 
-                size="small"
-                title="3D视图设置"
-                style={{
-                  position: 'absolute',
-                  top: '16px',
-                  right: '16px',
-                  width: '280px',
-                  zIndex: 10,
-                  background: 'rgba(255,255,255,0.95)',
-                  backdropFilter: 'blur(8px)'
-                }}
-              >
+              {/* 移动端提示：引导用户去电脑端使用完整功能 */}
+              {isMobile && (
+                <Card 
+                  size="small"
+                  style={{
+                    position: 'absolute',
+                    top: '16px',
+                    left: '16px',
+                    right: '16px',
+                    zIndex: 10,
+                    background: 'linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%)',
+                    border: '2px solid #ffc107',
+                    boxShadow: '0 4px 12px rgba(255, 193, 7, 0.3)'
+                  }}
+                >
+                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                    <AntText strong style={{ color: '#856404', fontSize: '13px', display: 'block' }}>
+                      💻 完整功能提示
+                    </AntText>
+                    <AntText style={{ color: '#856404', fontSize: '12px', display: 'block' }}>
+                      移动端已简化3D视图设置，请在电脑端访问以获得完整的3D视图渲染和设置功能体验。
+                    </AntText>
+                  </Space>
+                </Card>
+              )}
+              
+              {/* 3D视图控制面板 - 移动端隐藏 */}
+              {!isMobile && (
+                <Card 
+                  size="small"
+                  title="3D视图设置"
+                  style={{
+                    position: 'absolute',
+                    top: '16px',
+                    right: '16px',
+                    width: '280px',
+                    zIndex: 10,
+                    background: 'rgba(255,255,255,0.95)',
+                    backdropFilter: 'blur(8px)'
+                  }}
+                >
                 <Space direction="vertical" style={{ width: '100%' }} size="small">
                   {/* 墙面投影设置 */}
                   <div>
@@ -3599,6 +3638,7 @@ export const LensViewer: React.FC = () => {
                   </div>
                 </Space>
               </Card>
+              )}
             </div>
           ) : (
             <div style={{ 

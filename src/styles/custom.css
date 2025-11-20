@@ -167,6 +167,160 @@ body {
   .ant-layout-content {
     padding: 12px !important;
   }
+  
+  /* 移动端卡片优化 */
+  .ant-card {
+    margin-bottom: 12px !important;
+  }
+  
+  .ant-card-head {
+    padding: 8px 12px !important;
+  }
+  
+  .ant-card-body {
+    padding: 12px !important;
+  }
+  
+  /* 移动端按钮优化 */
+  .ant-btn {
+    min-height: 36px !important;
+    font-size: 14px !important;
+  }
+  
+  /* 移动端表单优化 */
+  .ant-form-item {
+    margin-bottom: 12px !important;
+  }
+  
+  /* 移动端标签页优化 */
+  .ant-tabs-tab {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+  
+  /* 移动端输入框优化 */
+  .ant-input,
+  .ant-input-number,
+  .ant-select-selector {
+    font-size: 16px !important; /* 防止iOS自动缩放 */
+  }
+  
+  /* 移动端滑块优化 */
+  .ant-slider {
+    margin: 12px 0 !important;
+  }
+  
+  /* 移动端表格优化 */
+  .ant-table {
+    font-size: 12px !important;
+  }
+  
+  /* 移动端模态框优化 */
+  .ant-modal {
+    max-width: 95% !important;
+    margin: 10px auto !important;
+  }
+  
+  .ant-modal-content {
+    padding: 16px !important;
+  }
+}
+
+/* 超小屏幕优化 */
+@media (max-width: 480px) {
+  .ant-layout-header {
+    padding: 0 8px !important;
+    height: 56px !important;
+    line-height: 56px !important;
+  }
+  
+  .ant-layout-content {
+    padding: 8px !important;
+  }
+  
+  .ant-card-head {
+    padding: 6px 8px !important;
+  }
+  
+  .ant-card-body {
+    padding: 8px !important;
+  }
+  
+  .ant-btn {
+    min-height: 32px !important;
+    font-size: 13px !important;
+    padding: 4px 12px !important;
+  }
+  
+  .ant-tabs-tab {
+    padding: 6px 8px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* 移动端触摸优化 */
+@media (max-width: 768px) {
+  /* 优化触摸目标大小 */
+  .ant-btn,
+  .ant-tabs-tab,
+  .ant-card-extra {
+    min-height: 44px !important; /* iOS推荐的最小触摸目标 */
+    min-width: 44px !important;
+  }
+  
+  /* 防止意外文本选择 */
+  .ant-layout-header,
+  .ant-btn {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+  
+  /* 优化滚动性能 */
+  .ant-layout-sider,
+  .ant-card-body {
+    -webkit-overflow-scrolling: touch;
+    overflow-scrolling: touch;
+  }
+  
+  /* 防止横向滚动 */
+  body {
+    overflow-x: hidden;
+  }
+  
+  /* 优化图片显示 */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+  
+  /* 优化表格在移动端的显示 */
+  .ant-table {
+    font-size: 12px !important;
+  }
+  
+  .ant-table-thead > tr > th {
+    padding: 8px 4px !important;
+    font-size: 12px !important;
+  }
+  
+  .ant-table-tbody > tr > td {
+    padding: 8px 4px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* 竖屏优化 */
+@media (max-width: 768px) and (orientation: portrait) {
+  .ant-layout-content {
+    padding: 8px !important;
+  }
+  
+  /* 确保内容不会溢出 */
+  * {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 }
 
 /* 玻璃态效果 */
