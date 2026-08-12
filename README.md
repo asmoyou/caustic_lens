@@ -1,3 +1,5 @@
+
+
 # 🔍 Caustic Lens Designer
 
 ![Caustic Lens Designer](./platform.jpg)
@@ -146,7 +148,7 @@ ports:
 ## 🏗️ 技术架构
 
 ### 前端技术栈
-- **React 18** - 现代化的用户界面框架
+- **React 19** - 现代化的用户界面框架
 - **TypeScript** - 类型安全的开发体验
 - **Three.js** - 强大的3D图形渲染引擎
 - **React Three Fiber** - React 的 Three.js 集成
