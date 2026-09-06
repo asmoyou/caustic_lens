@@ -2,6 +2,7 @@ import { DoubleSide, Ray, Vector3 } from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import type { LensGeometry, Point3D } from '../types';
 import { toBufferGeometry } from '../utils/geometry';
+import { receiverImageCoordinates } from './receiverCoordinates';
 
 export interface ProjectionOptions {
   refractiveIndex: number;
@@ -73,8 +74,10 @@ export function traceCaustics(geometry: LensGeometry, options: ProjectionOptions
         if (!outgoing) { totalInternalReflections++; continue; }
         if (outgoing.z <= 1e-8) continue;
         const t = (screenZ - exit.point.z) / outgoing.z;
-        const px = ((exit.point.x + outgoing.x * t - center.x) / screenWidth + 0.5) * resolution - 0.5;
-        const py = (0.5 - (exit.point.y + outgoing.y * t - center.y) / screenWidth) * resolution - 0.5;
+        const coordinates = receiverImageCoordinates(exit.point.x + outgoing.x * t,
+          exit.point.y + outgoing.y * t, center.x, center.y, screenWidth);
+        const px = coordinates.u * resolution - 0.5;
+        const py = coordinates.v * resolution - 0.5;
         if (px < 0 || px >= resolution - 1 || py < 0 || py >= resolution - 1) continue;
         receivedRays++;
         if (pathSamples.has(x) && pathSamples.has(y)) {

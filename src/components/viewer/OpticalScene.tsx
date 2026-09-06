@@ -6,6 +6,7 @@ import { Box3, CanvasTexture, DoubleSide, LinearFilter, MathUtils, SRGBColorSpac
 import type { LensGeometry } from '../../types';
 import type { ProjectionPreview } from './useProjectionPreview';
 import { toBufferGeometry } from '../../utils/geometry';
+import { createReceiverScreen } from './receiverScreen';
 
 export type ViewerMode = 'optical' | 'model' | 'projection';
 interface SceneProps {
@@ -28,8 +29,8 @@ function CameraRig({ bounds, mode, autoRotate, resetKey }: {
   const { camera, size } = useThree();
   useEffect(() => {
     const center = bounds.getCenter(new Vector3());
-    const direction = (mode === 'optical' ? new Vector3(-1.35, 0.48, 1) :
-      mode === 'model' ? new Vector3(0.55, 0.25, 1) : new Vector3(0, 0, 1)).normalize();
+    const direction = (mode === 'optical' ? new Vector3(-1.35, 0.48, -1) :
+      mode === 'model' ? new Vector3(0.55, 0.25, 1) : new Vector3(0, 0, -1)).normalize();
     const right = new Vector3(0, 1, 0).cross(direction).normalize();
     const up = direction.clone().cross(right).normalize();
     const tanV = Math.tan(MathUtils.degToRad(40) / 2);
@@ -76,6 +77,8 @@ export function OpticalScene({ geometry, preview, mode, distance, refractiveInde
     return map;
   }, [preview]);
   useEffect(() => () => texture?.dispose(), [texture]);
+  const receiver = useMemo(() => createReceiverScreen(screenWidth, texture), [screenWidth, texture]);
+  useEffect(() => () => receiver.dispose(), [receiver]);
   const framing = useMemo(() => {
     if (mode === 'model') return box.clone().expandByScalar(3);
     const half = screenWidth / 2 + 5;
@@ -109,16 +112,7 @@ export function OpticalScene({ geometry, preview, mode, distance, refractiveInde
         wireframe={wireframe} side={DoubleSide} />
       {!wireframe && <Edges threshold={35} color="#c5ced6" transparent opacity={0.32} />}
     </mesh>}
-    {mode !== 'model' && <group position={[center.x, center.y, screenZ]}>
-      <mesh position={[0, 0, -0.5]}>
-        <boxGeometry args={[screenWidth + 6, screenWidth + 6, 1]} />
-        <meshBasicMaterial color="#343639" />
-      </mesh>
-      <mesh name="caustic-screen" position={[0, 0, 0.1]} userData={{ projectionReady: !!texture }}>
-        <planeGeometry args={[screenWidth, screenWidth]} />
-        <meshBasicMaterial map={texture} color={texture ? '#ffffff' : '#060708'} toneMapped={false} side={DoubleSide} />
-      </mesh>
-    </group>}
+    {mode !== 'model' && <primitive object={receiver.object} position={[center.x, center.y, screenZ]} />}
     {mode === 'optical' && <>
       <group position={[center.x, center.y, sourceZ]}>
         <mesh position={[0, 0, -4]}><boxGeometry args={[dimensions.x + 8, dimensions.y + 8, 8]} />

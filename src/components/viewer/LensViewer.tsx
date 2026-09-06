@@ -74,7 +74,7 @@ export function LensViewer() {
       {error && <Alert className="viewport-error" type="error" showIcon message={error} />}
       {geometry && <div className="viewport-meta"><span className={`preview-status ${preview ? 'ready' : ''}`}>
         <i />{progress !== null ? `投影计算 ${progress}%` : preview ? '投影已就绪' : error ? '投影失败' : '等待投影'}</span></div>}
-      <span className="viewport-label">{mode === 'optical' ? '光路示意 · 轴向压缩' : mode === 'model' ? '透明透镜 / mm' : '投影正视'}</span>
+      <span className="viewport-label">{mode === 'optical' ? '光路示意 · 轴向压缩' : mode === 'model' ? '透明透镜 / mm' : '投影正视 · 受光面'}</span>
       {geometry && mode === 'optical' && <div className="optical-legend"><span><BulbOutlined /> 平行白光</span>
         <span><BorderOutlined /> 透明透镜</span><span><EyeOutlined /> 接收屏</span></div>}
     </div>
