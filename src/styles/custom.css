@@ -140,6 +140,21 @@
 .export-note { margin-bottom: 16px; }
 .export-panel .ant-form-item-label label { font-size: 12px; }
 .report-statistics { margin-bottom: 24px; }
+.report-dialog .ant-modal-content { padding: 0; overflow: hidden; border-radius: 6px; }
+.report-dialog .ant-modal-header { padding: 20px 24px; margin: 0; border-bottom: 1px solid #e3e4e8; }
+.report-dialog .ant-modal-close { top: 24px; right: 20px; }
+.report-dialog-heading { display: flex; align-items: center; gap: 11px; }
+.report-dialog-heading img { width: 34px; height: 34px; }
+.report-dialog-heading strong { font-size: 15px; font-weight: 600; display: block; line-height: 1.4; }
+.report-dialog-heading span { font-size: 9px; color: #9296a2; display: block; margin-top: 3px; font-weight: 400; }
+.report-dialog-toolbar { padding: 16px 24px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; background: #fff; }
+.report-dialog-toolbar .ant-form-item { margin: 0; flex: 1; max-width: 460px; min-width: 0; }
+.report-dialog-toolbar .ant-form-item-label { padding-bottom: 6px; }
+.report-dialog-toolbar .ant-form-item-label label { font-size: 11px; color: #848995; }
+.report-dialog-actions { display: flex; align-items: center; gap: 8px; padding-bottom: 1px; }
+.report-dialog-actions .ant-btn { font-size: 12px; height: 34px; box-shadow: none; }
+.report-preview { display: block; width: 100%; height: min(62dvh, 660px); border: 0; border-top: 1px solid #e3e4e8; background: #f4f4f6; }
+.report-dialog-error { margin: 0 24px 16px; }
 .controls-drawer .ant-drawer-body { padding: 8px 20px 24px; }
 .mobile-tools { display: flex; gap: 8px; margin-bottom: 16px; }
 .mobile-tools .ant-btn { flex: 1; font-size: 12px; box-shadow: none; }
@@ -148,6 +163,12 @@
 @media (max-width: 1199px) { .optical-summary { display: none; } .result-grid { grid-template-columns: minmax(0, 1fr); } .workspace-main { padding-inline: 24px; } }
 @media (max-width: 991px) { .workspace-layout { grid-template-columns: minmax(0, 1fr); } .workspace-main { padding: 24px 24px 0; } .viewer-section { height: 520px; } }
 @media (max-width: 575px) {
+  .report-dialog .ant-modal-header { padding: 16px; } .report-dialog .ant-modal-close { top: 19px; right: 12px; }
+  .report-dialog-toolbar { padding: 14px 16px; flex-wrap: wrap; gap: 12px; }
+  .report-dialog-toolbar .ant-form-item { flex-basis: 100%; max-width: none; }
+  .report-dialog-actions { width: 100%; justify-content: flex-end; }
+  .report-preview { height: min(54dvh, 540px); }
+  .report-dialog-error { margin-inline: 16px; }
   .app-header { padding: 0 16px; height: 76px; gap: 10px; }
   .brand { gap: 9px; } .brand img { width: 35px; height: 35px; } .brand strong { font-size: 18px; }
   .brand .brand-subtitle { font-size: 9px; margin-top: 5px; } .brand-subtitle-en { display: none; }

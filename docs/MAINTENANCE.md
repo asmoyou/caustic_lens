@@ -43,7 +43,11 @@ STL, OBJ and PLY use the Three.js exporters. Units and scale apply to every form
 
 STEP uses planar `FACE_SURFACE` entities with `POLY_LOOP` bounds in a `FACETED_BREP_SHAPE_REPRESENTATION`. Every face has an in-plane reference direction; length, plane-angle and solid-angle units are explicit. Open or inconsistently oriented shells are rejected. See the [STEP schema definition](https://downloads.steptools.com/docs/stp_aim/html/t_faceted_brep_shape_representation.html). Test files are independently imported using [OpenCascade through occt-import-js](https://github.com/kovacsv/occt-import-js), which is a development-only dependency.
 
-HTML reports embed raster image bytes and escape user-provided text. Dimensions come from the actual geometry, and volume sums signed tetrahedra before taking the absolute value. The report survives clearing the project or closing the application.
+The report dialog previews the same HTML template used by downloaded reports. Its black/gray typography, amber accents and embedded SVG logo match the workspace. The report includes the target image, the latest projection status/image, point-source settings, receiver dimensions and current mesh statistics. Pending or failed projections are explicitly labeled and are not shown as completed results.
+
+HTML reports embed raster image bytes and escape user-provided text. Snapshot parameters and projection data are copied before export. Dimensions come from the actual geometry, and volume sums signed tetrahedra before taking the absolute value. The report survives clearing the project or closing the application. Print styles use an A4 layout with a white masthead and intact image/parameter sections; the dialog's print command targets the report iframe.
+
+The default algorithm focal length is 1.5 m, shared by initial projects and reset-to-defaults. Reports record the actual configured value.
 
 ## Remaining Work
 
