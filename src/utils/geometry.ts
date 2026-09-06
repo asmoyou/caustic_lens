@@ -1,4 +1,4 @@
-import { BufferGeometry, Float32BufferAttribute } from 'three';
+import { BufferAttribute, BufferGeometry, Float32BufferAttribute } from 'three';
 import type { LensGeometry } from '../types';
 
 export function validateGeometry(geometry: LensGeometry): void {
@@ -21,7 +21,7 @@ export function toBufferGeometry(geometry: LensGeometry): BufferGeometry {
   const indices = new Uint32Array(geometry.faces.length * 3);
   geometry.faces.forEach((face, index) => indices.set(face, index * 3));
   buffer.setAttribute('position', new Float32BufferAttribute(positions, 3));
-  buffer.setIndex(Array.from(indices));
+  buffer.setIndex(new BufferAttribute(indices, 1));
   buffer.computeVertexNormals();
   buffer.computeBoundingBox();
   buffer.computeBoundingSphere();

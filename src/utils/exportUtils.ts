@@ -1,517 +1,128 @@
-import * as THREE from 'three';
-import type { LensGeometry } from '../types';
+import { Mesh, MeshBasicMaterial, Vector3 } from 'three';
+import { STLExporter as ThreeSTLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
+import { OBJExporter as ThreeOBJExporter } from 'three/examples/jsm/exporters/OBJExporter.js';
+import { PLYExporter as ThreePLYExporter } from 'three/examples/jsm/exporters/PLYExporter.js';
+import type { CausticParameters, LensGeometry } from '../types';
+import { toBufferGeometry, validateGeometry } from './geometry';
 
-// 公共下载文件方法
-const downloadFile = (content: string, filename: string, mimeType: string): void => {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
+export type ExportFormat = 'stl' | 'obj' | 'ply' | 'step' | 'json';
+export type ExportUnits = 'mm' | 'cm' | 'inch';
+export interface ExportOptions {
+  format: ExportFormat;
+  scale?: number;
+  units?: ExportUnits;
+  filename?: string;
+  sourceImage?: string;
+  parameters?: CausticParameters;
+}
+const unitScales: Record<ExportUnits, number> = { mm: 1, cm: 0.1, inch: 1 / 25.4 };
+
+export function scaleGeometry(geometry: LensGeometry, scale = 1, units: ExportUnits = 'mm'): LensGeometry {
+  validateGeometry(geometry);
+  if (!Number.isFinite(scale) || scale <= 0 || !(units in unitScales)) throw new Error('导出比例或单位无效');
+  const factor = scale * unitScales[units];
+  const scaled = { ...geometry, vertices: geometry.vertices.map(v => ({ x: v.x * factor, y: v.y * factor, z: v.z * factor })) };
+  validateGeometry(scaled);
+  return scaled;
+}
+
+function stepReal(value: number): string { return value.toExponential(12).replace('e', 'E'); }
+
+export function generateSTEP(geometry: LensGeometry, units: ExportUnits = 'mm'): string {
+  validateGeometry(geometry);
+  const lines = ['ISO-10303-21;', 'HEADER;', "FILE_DESCRIPTION(('Caustic Lens faceted model'),'2;1');",
+    `FILE_NAME('lens.step','${new Date().toISOString()}',('Caustic Lens Designer'),(''),'','','');`,
+    "FILE_SCHEMA(('CONFIG_CONTROL_DESIGN'));", 'ENDSEC;', 'DATA;'];
+  let id = 0;
+  const add = (entity: string) => { const ref = `#${++id}`; lines.push(`${ref}=${entity};`); return ref; };
+  const app = add("APPLICATION_CONTEXT('configuration controlled 3d designs of mechanical parts and assemblies')");
+  add(`APPLICATION_PROTOCOL_DEFINITION('international standard','config_control_design',1994,${app})`);
+  const productContext = add(`PRODUCT_CONTEXT('',${app},'mechanical')`);
+  const product = add(`PRODUCT('CausticLens','Caustic Lens','',(${productContext}))`);
+  const formation = add(`PRODUCT_DEFINITION_FORMATION('','',${product})`);
+  const definitionContext = add(`PRODUCT_DEFINITION_CONTEXT('part definition',${app},'design')`);
+  const definition = add(`PRODUCT_DEFINITION('design','',${formation},${definitionContext})`);
+  const lengthSI = add(`(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(${units === 'cm' ? '.CENTI.' : '.MILLI.'},.METRE.))`);
+  let length = lengthSI;
+  if (units === 'inch') {
+    const dimensions = add('DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.)');
+    const conversion = add(`LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),${lengthSI})`);
+    length = add(`(CONVERSION_BASED_UNIT('INCH',${conversion}) LENGTH_UNIT() NAMED_UNIT(${dimensions}))`);
+  }
+  const angle = add('(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))');
+  const solidAngle = add('(NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT())');
+  const uncertainty = add(`UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-7),${length},'distance_accuracy_value','')`);
+  const context = add(`(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((${uncertainty})) GLOBAL_UNIT_ASSIGNED_CONTEXT((${length},${angle},${solidAngle})) REPRESENTATION_CONTEXT('','3D'))`);
+  const points = new Map<string, string>();
+  const refs = geometry.vertices.map(v => {
+    const key = [v.x, v.y, v.z].map(stepReal).join(',');
+    if (!points.has(key)) points.set(key, add(`CARTESIAN_POINT('',(${key}))`));
+    return points.get(key)!;
+  });
+  const edges = new Map<string, { count: number; orientation: number }>();
+  const faces: string[] = [];
+  for (const face of geometry.faces) {
+    const [a, b, c] = face.map(index => new Vector3().copy(geometry.vertices[index]));
+    const edge = b.clone().sub(a).normalize();
+    const normal = b.sub(a).cross(c.sub(a));
+    if (normal.lengthSq() < 1e-24) throw new Error('STEP 导出遇到退化面片');
+    normal.normalize();
+    for (let i = 0; i < 3; i++) {
+      const from = refs[face[i]], to = refs[face[(i + 1) % 3]];
+      const key = from < to ? `${from}:${to}` : `${to}:${from}`;
+      const previous = edges.get(key) ?? { count: 0, orientation: 0 };
+      edges.set(key, { count: previous.count + 1, orientation: previous.orientation + (from < to ? 1 : -1) });
+    }
+    const axis = add(`DIRECTION('',(${normal.toArray().map(stepReal).join(',')}))`);
+    const reference = add(`DIRECTION('',(${edge.toArray().map(stepReal).join(',')}))`);
+    const placement = add(`AXIS2_PLACEMENT_3D('',${refs[face[0]]},${axis},${reference})`);
+    const plane = add(`PLANE('',${placement})`);
+    const loop = add(`POLY_LOOP('',(${face.map(index => refs[index]).join(',')}))`);
+    const bound = add(`FACE_OUTER_BOUND('',${loop},.T.)`);
+    // POLY_LOOP bounds belong to FACE_SURFACE in a faceted BREP, not ADVANCED_FACE.
+    faces.push(add(`FACE_SURFACE('',(${bound}),${plane},.T.)`));
+  }
+  if ([...edges.values()].some(edge => edge.count !== 2 || edge.orientation !== 0)) throw new Error('STEP 导出需要方向一致的封闭模型');
+  const shell = add(`CLOSED_SHELL('',(${faces.join(',')}))`);
+  const solid = add(`FACETED_BREP('',${shell})`);
+  const representation = add(`FACETED_BREP_SHAPE_REPRESENTATION('',(${solid}),${context})`);
+  const shape = add(`PRODUCT_DEFINITION_SHAPE('','',${definition})`);
+  add(`SHAPE_DEFINITION_REPRESENTATION(${shape},${representation})`);
+  lines.push('ENDSEC;', 'END-ISO-10303-21;');
+  return lines.join('\n');
+}
+
+export function serializeGeometry(geometry: LensGeometry, options: ExportOptions): string | ArrayBuffer {
+  const units = options.units ?? 'mm';
+  const scaled = scaleGeometry(geometry, options.scale, units);
+  if (options.format === 'step') return generateSTEP(scaled, units);
+  if (options.format === 'json') return JSON.stringify({
+    metadata: { type: 'CausticLens', version: '1.1', units, scale: options.scale ?? 1,
+      sourceImage: options.sourceImage, timestamp: new Date().toISOString() },
+    geometry: scaled, parameters: options.parameters,
+  }, null, 2);
+  const buffer = toBufferGeometry(scaled);
+  const material = new MeshBasicMaterial();
+  const mesh = new Mesh(buffer, material);
+  try {
+    if (options.format === 'stl') return new ThreeSTLExporter().parse(mesh, { binary: true }).buffer;
+    if (options.format === 'obj') return new ThreeOBJExporter().parse(mesh);
+    if (options.format === 'ply') return new ThreePLYExporter().parse(mesh, undefined!, { binary: false })!;
+    throw new Error('不支持的导出格式');
+  } finally { buffer.dispose(); material.dispose(); }
+}
+
+export function downloadExport(content: string | ArrayBuffer, filename: string): void {
+  const url = URL.createObjectURL(new Blob([content], { type: 'application/octet-stream' }));
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
   document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
-
-// 二进制STL导出器 - 文件大小比ASCII格式小很多
-export class STLExporter {
-  static export(geometry: LensGeometry, filename: string = 'lens.stl'): void {
-    const binarySTL = this.generateBinarySTL(geometry);
-    const blob = new Blob([binarySTL], { type: 'application/octet-stream' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }
-
-  private static generateBinarySTL(geometry: LensGeometry): ArrayBuffer {
-    const faceCount = geometry.faces.length;
-    // 二进制STL格式：80字节头部 + 4字节面片数 + 每个面片50字节
-    const bufferSize = 80 + 4 + (faceCount * 50);
-    const buffer = new ArrayBuffer(bufferSize);
-    const view = new DataView(buffer);
-    
-    // 写入80字节头部
-    const header = 'Binary STL generated by Caustic Lens Designer';
-    for (let i = 0; i < Math.min(header.length, 80); i++) {
-      view.setUint8(i, header.charCodeAt(i));
-    }
-    
-    // 写入面片数量（小端序）
-    view.setUint32(80, faceCount, true);
-    
-    let offset = 84;
-    
-    for (const face of geometry.faces) {
-      const v1 = geometry.vertices[face[0]];
-      const v2 = geometry.vertices[face[1]];
-      const v3 = geometry.vertices[face[2]];
-      
-      // 计算法向量
-      const normal = this.calculateNormal(v1, v2, v3);
-      
-      // 写入法向量（12字节，3个float32）
-      view.setFloat32(offset, normal.x, true); offset += 4;
-      view.setFloat32(offset, normal.y, true); offset += 4;
-      view.setFloat32(offset, normal.z, true); offset += 4;
-      
-      // 写入三个顶点坐标（36字节，9个float32）
-      view.setFloat32(offset, v1.x, true); offset += 4;
-      view.setFloat32(offset, v1.y, true); offset += 4;
-      view.setFloat32(offset, v1.z, true); offset += 4;
-      
-      view.setFloat32(offset, v2.x, true); offset += 4;
-      view.setFloat32(offset, v2.y, true); offset += 4;
-      view.setFloat32(offset, v2.z, true); offset += 4;
-      
-      view.setFloat32(offset, v3.x, true); offset += 4;
-      view.setFloat32(offset, v3.y, true); offset += 4;
-      view.setFloat32(offset, v3.z, true); offset += 4;
-      
-      // 属性字节计数（2字节，通常为0）
-      view.setUint16(offset, 0, true); offset += 2;
-    }
-    
-    return buffer;
-  }
-
-  private static calculateNormal(v1: any, v2: any, v3: any): THREE.Vector3 {
-    const vec1 = new THREE.Vector3(v2.x - v1.x, v2.y - v1.y, v2.z - v1.z);
-    const vec2 = new THREE.Vector3(v3.x - v1.x, v3.y - v1.y, v3.z - v1.z);
-    return vec1.cross(vec2).normalize();
-  }
-
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// OBJ导出器
-export class OBJExporter {
-  static export(geometry: LensGeometry, filename: string = 'lens.obj'): void {
-    const objString = this.generateOBJ(geometry);
-    downloadFile(objString, filename, 'text/plain');
-  }
-
-  private static generateOBJ(geometry: LensGeometry): string {
-    let obj = '# Caustic Lens OBJ File\n';
-    obj += '# Generated by Caustic Lens Designer\n\n';
-    
-    // 写入顶点 - 降低精度到3位小数
-    obj += '# Vertices\n';
-    for (const vertex of geometry.vertices) {
-      obj += `v ${vertex.x.toFixed(3)} ${vertex.y.toFixed(3)} ${vertex.z.toFixed(3)}\n`;
-    }
-    
-    // 简化面片格式，不包含UV和法向量索引以减少文件大小
-    obj += '\n# Faces\n';
-    for (const face of geometry.faces) {
-      const v1 = face[0] + 1;
-      const v2 = face[1] + 1;
-      const v3 = face[2] + 1;
-      obj += `f ${v1} ${v2} ${v3}\n`;
-    }
-    
-    return obj;
-  }
-
+export function exportGeometry(geometry: LensGeometry, options: ExportOptions): void {
+  downloadExport(serializeGeometry(geometry, options), options.filename ?? `lens.${options.format}`);
 }
-
-// G-Code导出器（用于3D打印）
-export class GCodeExporter {
-  static export(
-    geometry: LensGeometry, 
-    settings: GCodeSettings = {},
-    filename: string = 'lens.gcode'
-  ): void {
-    const gcode = this.generateGCode(geometry, settings);
-    downloadFile(gcode, filename, 'text/plain');
-  }
-
-  private static generateGCode(geometry: LensGeometry, settings: GCodeSettings): string {
-    const config = {
-      layerHeight: 0.2,
-      printSpeed: 50,
-      travelSpeed: 120,
-      extrusionMultiplier: 1.0,
-      bedTemp: 60,
-      hotendTemp: 200,
-      ...settings
-    };
-
-    let gcode = '; Caustic Lens G-Code\n';
-    gcode += '; Generated by Caustic Lens Designer\n';
-    gcode += `; Layer Height: ${config.layerHeight}mm\n`;
-    gcode += `; Print Speed: ${config.printSpeed}mm/s\n\n`;
-    
-    // 初始化代码
-    gcode += '; Initialization\n';
-    gcode += 'G21 ; Set units to millimeters\n';
-    gcode += 'G90 ; Use absolute coordinates\n';
-    gcode += 'M82 ; Use absolute distances for extrusion\n';
-    gcode += `M190 S${config.bedTemp} ; Set bed temperature and wait\n`;
-    gcode += `M109 S${config.hotendTemp} ; Set hotend temperature and wait\n`;
-    gcode += 'G28 ; Home all axes\n';
-    gcode += 'G1 Z15.0 F6000 ; Move the platform down 15mm\n\n';
-    
-    // 计算边界框
-    const bounds = this.calculateBounds(geometry);
-    const centerX = (bounds.min.x + bounds.max.x) / 2;
-    const centerY = (bounds.min.y + bounds.max.y) / 2;
-    
-    // 生成层片
-    const layers = this.sliceGeometry(geometry, config.layerHeight);
-    
-    gcode += '; Start printing\n';
-    for (let i = 0; i < layers.length; i++) {
-      const z = bounds.min.z + i * config.layerHeight;
-      gcode += `; Layer ${i + 1}\n`;
-      gcode += `G1 Z${z.toFixed(3)} F${config.printSpeed * 60}\n`;
-      
-      // 简化的层片打印逻辑
-      const layer = layers[i];
-      for (const path of layer) {
-        gcode += `G1 X${(path.x + centerX).toFixed(3)} Y${(path.y + centerY).toFixed(3)} F${config.travelSpeed * 60}\n`;
-        gcode += `G1 E${(i * 0.1).toFixed(3)} F${config.printSpeed * 60}\n`;
-      }
-    }
-    
-    // 结束代码
-    gcode += '\n; End of print\n';
-    gcode += 'M104 S0 ; Turn off hotend\n';
-    gcode += 'M140 S0 ; Turn off bed\n';
-    gcode += 'G91 ; Relative positioning\n';
-    gcode += 'G1 E-1 F300 ; Retract the filament\n';
-    gcode += 'G1 Z+0.5 X-20 Y-20 F3000 ; Move up and away\n';
-    gcode += 'G28 X0 ; Home X axis\n';
-    gcode += 'M84 ; Disable steppers\n';
-    
-    return gcode;
-  }
-
-  private static calculateBounds(geometry: LensGeometry): { min: THREE.Vector3, max: THREE.Vector3 } {
-    const min = new THREE.Vector3(Infinity, Infinity, Infinity);
-    const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
-    
-    for (const vertex of geometry.vertices) {
-      min.x = Math.min(min.x, vertex.x);
-      min.y = Math.min(min.y, vertex.y);
-      min.z = Math.min(min.z, vertex.z);
-      max.x = Math.max(max.x, vertex.x);
-      max.y = Math.max(max.y, vertex.y);
-      max.z = Math.max(max.z, vertex.z);
-    }
-    
-    return { min, max };
-  }
-
-  private static sliceGeometry(geometry: LensGeometry, layerHeight: number): Array<Array<{x: number, y: number}>> {
-    const bounds = this.calculateBounds(geometry);
-    const numLayers = Math.ceil((bounds.max.z - bounds.min.z) / layerHeight);
-    const layers: Array<Array<{x: number, y: number}>> = [];
-    
-    // 简化的切片算法
-    for (let i = 0; i < numLayers; i++) {
-      const z = bounds.min.z + i * layerHeight;
-      const layer: Array<{x: number, y: number}> = [];
-      
-      // 在当前Z高度找到所有相交的边
-      for (const face of geometry.faces) {
-        const v1 = geometry.vertices[face[0]];
-        const v2 = geometry.vertices[face[1]];
-        const v3 = geometry.vertices[face[2]];
-        
-        // 简化：只添加面片的中心点
-        if ((v1.z <= z && v2.z >= z) || (v1.z >= z && v2.z <= z) ||
-            (v2.z <= z && v3.z >= z) || (v2.z >= z && v3.z <= z) ||
-            (v3.z <= z && v1.z >= z) || (v3.z >= z && v1.z <= z)) {
-          const centerX = (v1.x + v2.x + v3.x) / 3;
-          const centerY = (v1.y + v2.y + v3.y) / 3;
-          layer.push({ x: centerX, y: centerY });
-        }
-      }
-      
-      layers.push(layer);
-    }
-    
-    return layers;
-  }
-
-}
-
-// PLY导出器
-export class PLYExporter {
-  static export(geometry: LensGeometry, filename: string = 'lens.ply'): void {
-    const plyString = this.generatePLY(geometry);
-    downloadFile(plyString, filename, 'application/octet-stream');
-  }
-
-  private static generatePLY(geometry: LensGeometry): string {
-    let ply = 'ply\n';
-    ply += 'format ascii 1.0\n';
-    ply += 'comment Generated by Caustic Lens Designer\n';
-    ply += `element vertex ${geometry.vertices.length}\n`;
-    ply += 'property float x\n';
-    ply += 'property float y\n';
-    ply += 'property float z\n';
-    ply += 'property float nx\n';
-    ply += 'property float ny\n';
-    ply += 'property float nz\n';
-    ply += `element face ${geometry.faces.length}\n`;
-    ply += 'property list uchar int vertex_indices\n';
-    ply += 'end_header\n';
-    
-    // 写入顶点数据
-    for (let i = 0; i < geometry.vertices.length; i++) {
-      const vertex = geometry.vertices[i];
-      const normal = geometry.normals[i] || { x: 0, y: 0, z: 1 };
-      ply += `${vertex.x} ${vertex.y} ${vertex.z} ${normal.x} ${normal.y} ${normal.z}\n`;
-    }
-    
-    // 写入面片数据
-    for (const face of geometry.faces) {
-      ply += `3 ${face[0]} ${face[1]} ${face[2]}\n`;
-    }
-    
-    return ply;
-  }
-
-}
-
-// STEP文件导出器 - 重新实现符合标准的版本
-export class STEPExporter {
-  static export(geometry: LensGeometry, filename: string = 'lens.step'): void {
-    const stepContent = this.generateSTEP(geometry, filename);
-    downloadFile(stepContent, filename, 'application/step');
-  }
-
-  private static generateSTEP(geometry: LensGeometry, filename: string = 'lens.step'): string {
-    const vertices = geometry.vertices;
-    const faces = geometry.faces;
-    
-    if (!vertices || vertices.length === 0 || !faces || faces.length === 0) {
-      throw new Error('几何体数据为空，无法导出STEP文件');
-    }
-
-    console.log(`开始生成STEP文件，顶点数: ${vertices.length}, 面数: ${faces.length}`);
-    
-    // 使用数组拼接以避免字符串长度限制
-    const lines: string[] = [];
-    
-    // 标准STEP文件头部
-    lines.push('ISO-10303-21;');
-    lines.push('HEADER;');
-    lines.push('FILE_DESCRIPTION((\'Caustic Lens Model\'), \'2;1\');');
-    lines.push(`FILE_NAME(\'${filename}\', \'${new Date().toISOString()}\', (\'Caustic Lens Designer\'), (\'\'), \'\', \'\', \'\');`);
-    lines.push('FILE_SCHEMA((\'CONFIG_CONTROL_DESIGN\'));');
-    lines.push('ENDSEC;');
-    lines.push('DATA;');
-    
-    let id = 1;
-    
-    // 基础设置
-    lines.push(`#${id++} = APPLICATION_CONTEXT(\'configuration controlled 3d designs of mechanical parts and assemblies\');`);
-    lines.push(`#${id++} = APPLICATION_PROTOCOL_DEFINITION(\'international standard\', \'config_control_design\', 1994, #1);`);
-    lines.push(`#${id++} = PRODUCT(\'CausticLens\', \'Caustic Lens\', \'\', (#4));`);
-    lines.push(`#${id++} = PRODUCT_CONTEXT(\'\', #1, \'mechanical\');`);
-    lines.push(`#${id++} = PRODUCT_DEFINITION_FORMATION(\'\', \'\', #3);`);
-    lines.push(`#${id++} = PRODUCT_DEFINITION(\'design\', \'\', #5, #7);`);
-    lines.push(`#${id++} = PRODUCT_DEFINITION_CONTEXT(\'part definition\', #1, \'design\');`);
-    
-    // 单位和上下文
-    lines.push(`#${id++} = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );`);
-    lines.push(`#${id++} = ( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#10)) GLOBAL_UNIT_ASSIGNED_CONTEXT((#8)) REPRESENTATION_CONTEXT(\'3D\',\'\') );`);
-    lines.push(`#${id++} = UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),#8,\'distance_accuracy_value\',\'confusion accuracy\');`);
-    
-    // 坐标系
-    lines.push(`#${id++} = CARTESIAN_POINT(\'\', (0.,0.,0.));`);
-    lines.push(`#${id++} = DIRECTION(\'\', (0.,0.,1.));`);
-    lines.push(`#${id++} = DIRECTION(\'\', (1.,0.,0.));`);
-    lines.push(`#${id++} = AXIS2_PLACEMENT_3D(\'\', #11, #12, #13);`);
-    
-    // 先收集实际使用的顶点索引
-    const usedVertices = new Set<number>();
-    for (const face of faces) {
-      if (face[0] < vertices.length && face[1] < vertices.length && face[2] < vertices.length) {
-        usedVertices.add(face[0]);
-        usedVertices.add(face[1]);
-        usedVertices.add(face[2]);
-      }
-    }
-    
-    // 只创建实际使用的顶点的CARTESIAN_POINT
-    const pointIds: number[] = new Array(vertices.length);
-    for (const vertexIndex of usedVertices) {
-      const vertex = vertices[vertexIndex];
-      const pointId = id++;
-      pointIds[vertexIndex] = pointId;
-      lines.push(`#${pointId} = CARTESIAN_POINT(\'\', (${vertex.x.toFixed(6)}, ${vertex.y.toFixed(6)}, ${vertex.z.toFixed(6)}));`);
-    }
-    
-    console.log(`实际使用顶点数: ${usedVertices.size} / ${vertices.length}`);
-    
-    // 创建三角面网格
-    const faceIds: number[] = [];
-    
-    for (let i = 0; i < faces.length; i++) {
-      const face = faces[i];
-      if (face[0] >= vertices.length || face[1] >= vertices.length || face[2] >= vertices.length) {
-        continue;
-      }
-      
-      const v1 = vertices[face[0]];
-      const v2 = vertices[face[1]];
-      const v3 = vertices[face[2]];
-      
-      // 计算面法向量
-      const edge1 = { x: v2.x - v1.x, y: v2.y - v1.y, z: v2.z - v1.z };
-      const edge2 = { x: v3.x - v1.x, y: v3.y - v1.y, z: v3.z - v1.z };
-      const normal = {
-        x: edge1.y * edge2.z - edge1.z * edge2.y,
-        y: edge1.z * edge2.x - edge1.x * edge2.z,
-        z: edge1.x * edge2.y - edge1.y * edge2.x
-      };
-      const len = Math.sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
-      if (len > 0) {
-        normal.x /= len;
-        normal.y /= len;
-        normal.z /= len;
-      }
-      
-      // 创建面的几何定义
-      const normalDirId = id++;
-      lines.push(`#${normalDirId} = DIRECTION(\'\', (${normal.x.toFixed(6)}, ${normal.y.toFixed(6)}, ${normal.z.toFixed(6)}));`);
-      
-      const axisId = id++;
-      lines.push(`#${axisId} = AXIS2_PLACEMENT_3D(\'\', #${pointIds[face[0]]}, #${normalDirId}, #13);`);
-      
-      const planeId = id++;
-      lines.push(`#${planeId} = PLANE(\'\', #${axisId});`);
-      
-      // 使用简化的POLY_LOOP方法，避免创建过多实体
-      const polyLoopId = id++;
-      lines.push(`#${polyLoopId} = POLY_LOOP(\'\', (#${pointIds[face[0]]}, #${pointIds[face[1]]}, #${pointIds[face[2]]}));`);
-      
-      const outerBoundId = id++;
-      lines.push(`#${outerBoundId} = FACE_OUTER_BOUND(\'\', #${polyLoopId}, .T.);`);
-      
-      const faceId = id++;
-      lines.push(`#${faceId} = ADVANCED_FACE(\'\', (#${outerBoundId}), #${planeId}, .T.);`);
-      faceIds.push(faceId);
-    }
-    
-    // 创建实体
-    const shellId = id++;
-    lines.push(`#${shellId} = CLOSED_SHELL(\'\', (${faceIds.map(fid => `#${fid}`).join(', ')}));`);
-    
-    const solidId = id++;
-    lines.push(`#${solidId} = MANIFOLD_SOLID_BREP(\'\', #${shellId});`);
-    
-    // 形状表示
-    const shapeRepId = id++;
-    lines.push(`#${shapeRepId} = SHAPE_REPRESENTATION(\'\', (#${solidId}), #9);`);
-    
-    // 产品定义形状
-    const prodDefShapeId = id++;
-    lines.push(`#${prodDefShapeId} = PRODUCT_DEFINITION_SHAPE(\'\', \'\', #6);`);
-    
-    lines.push(`#${id++} = SHAPE_DEFINITION_REPRESENTATION(#${prodDefShapeId}, #${shapeRepId});`);
-    
-    // 文件结尾
-    lines.push('ENDSEC;');
-    lines.push('END-ISO-10303-21;');
-    
-    console.log(`STEP文件生成完成，总实体数: ${id - 1}, 行数: ${lines.length}`);
-    
-    // 分批拼接以避免超大字符串问题
-    if (lines.length > 100000) {
-      console.log('使用分批拼接模式处理大文件');
-      const chunkSize = 50000;
-      let result = '';
-      for (let i = 0; i < lines.length; i += chunkSize) {
-        const chunk = lines.slice(i, i + chunkSize);
-        result += chunk.join('\n') + (i + chunkSize < lines.length ? '\n' : '');
-      }
-      return result;
-    }
-    
-    return lines.join('\n');
-  }
-}
-
-// 导出设置接口
-export interface GCodeSettings {
-  layerHeight?: number;
-  printSpeed?: number;
-  travelSpeed?: number;
-  extrusionMultiplier?: number;
-  bedTemp?: number;
-  hotendTemp?: number;
-}
-
-export interface ExportOptions {
-  format: 'stl' | 'obj' | 'gcode' | 'ply' | 'step';
-  filename?: string;
-  gCodeSettings?: GCodeSettings;
-}
-
-// 统一导出函数
-export const exportGeometry = (geometry: LensGeometry, options: ExportOptions): void => {
-  const { format, filename, gCodeSettings } = options;
-  
-  switch (format) {
-    case 'stl':
-      STLExporter.export(geometry, filename);
-      break;
-    case 'obj':
-      OBJExporter.export(geometry, filename);
-      break;
-    case 'gcode':
-      GCodeExporter.export(geometry, gCodeSettings, filename);
-      break;
-    case 'ply':
-      PLYExporter.export(geometry, filename);
-      break;
-    case 'step':
-      STEPExporter.export(geometry, filename);
-      break;
-    default:
-      throw new Error(`Unsupported export format: ${format}`);
-  }
-};
-
-// 导出格式信息
-export const EXPORT_FORMATS = {
-  stl: {
-    name: 'STL',
-    description: '3D打印标准格式',
-    extension: '.stl',
-    mimeType: 'application/octet-stream'
-  },
-  obj: {
-    name: 'OBJ',
-    description: 'Wavefront OBJ格式',
-    extension: '.obj',
-    mimeType: 'text/plain'
-  },
-  gcode: {
-    name: 'G-Code',
-    description: '3D打印机指令文件',
-    extension: '.gcode',
-    mimeType: 'text/plain'
-  },
-  ply: {
-    name: 'PLY',
-    description: 'Stanford PLY格式',
-    extension: '.ply',
-    mimeType: 'application/octet-stream'
-  },
-  step: {
-    name: 'STEP',
-    description: 'CAD标准交换格式',
-    extension: '.step',
-    mimeType: 'application/step'
-  }
-} as const;
