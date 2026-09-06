@@ -3,7 +3,7 @@ import { Alert, Button, Form, Input, Modal, Tooltip } from 'antd';
 import { DownloadOutlined, PrinterOutlined } from '@ant-design/icons';
 import { useProjectStore } from '../../stores/projectStore';
 import { ReportGenerator } from '../../utils/reportGenerator';
-import logoSvg from '../../../public/lens-icon.svg?raw';
+import logoSvg from '../../assets/lens-icon.svg?raw';
 
 const logoDataUrl = `data:image/svg+xml,${encodeURIComponent(logoSvg)}`;
 interface ReportDialogProps { visible: boolean; onCancel: () => void }

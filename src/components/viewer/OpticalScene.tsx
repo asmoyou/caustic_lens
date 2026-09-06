@@ -30,7 +30,7 @@ function CameraRig({ bounds, mode, autoRotate, resetKey }: {
   bounds: Box3; mode: ViewerMode; autoRotate: boolean; resetKey: number;
 }) {
   const controls = useRef<OrbitControlsImpl>(null);
-  const { camera, size } = useThree();
+  const { camera, size, invalidate } = useThree();
   useEffect(() => {
     const center = bounds.getCenter(new Vector3());
     const direction = (mode === 'optical' ? new Vector3(-1.35, 0.48, -1) :
@@ -51,7 +51,8 @@ function CameraRig({ bounds, mode, autoRotate, resetKey }: {
     camera.updateProjectionMatrix();
     controls.current?.target.copy(center);
     controls.current?.update();
-  }, [camera, bounds, mode, resetKey, size.width, size.height]);
+    invalidate();
+  }, [camera, bounds, mode, resetKey, size.width, size.height, invalidate]);
   return <OrbitControls ref={controls} makeDefault autoRotate={autoRotate && mode !== 'projection'} autoRotateSpeed={0.7}
     minDistance={30} maxDistance={10000} enableDamping enableRotate={mode !== 'projection'} />;
 }

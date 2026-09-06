@@ -9,6 +9,7 @@ import { ParameterPanel } from './components/controls/ParameterPanel';
 import { ExportPanel } from './components/export/ExportPanel';
 import { ReportDialog } from './components/report/ReportDialog';
 import { useProjectStore } from './stores/projectStore';
+import lensIconUrl from './assets/lens-icon.svg';
 import './styles/custom.css';
 
 function App() {
@@ -32,7 +33,7 @@ function App() {
   } }}>
     <AntApp><div className="app-shell">
       <header className="app-header">
-        <div className="brand"><img src={`${import.meta.env.BASE_URL}lens-icon.svg?v=2`} alt="" />
+        <div className="brand"><img src={lensIconUrl} alt="" />
           <div><strong>Caustic Lens<span className="brand-period">.</span></strong><span className="brand-subtitle">光学设计工作室<span className="brand-subtitle-en"> / OPTICS STUDIO</span></span></div></div>
         <div className="header-actions">
           <Tooltip title="新建项目"><Popconfirm title="新建项目？" description="当前图像、模型和计算结果将被清除。"

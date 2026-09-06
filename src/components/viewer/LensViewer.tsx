@@ -8,6 +8,7 @@ import { useProjectStore } from '../../stores/projectStore';
 import { OpticalScene } from './OpticalScene';
 import type { ViewerMode } from './OpticalScene';
 import { useProjectionPreview } from './useProjectionPreview';
+import lensIconUrl from '../../assets/lens-icon.svg';
 
 class ViewerBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -96,14 +97,14 @@ export function LensViewer() {
       </div>
     </div>
     <div className="viewport" data-testid="viewport" data-mode={mode} data-light-source={parameters.lightSource.type} data-projection-ready={!!preview}>
-      {geometry ? <ViewerBoundary><Canvas dpr={[1, 2]} camera={{ fov: 40 }}
+      {geometry ? <ViewerBoundary><Canvas dpr={[1, 2]} camera={{ fov: 40 }} frameloop={autoRotate && mode !== 'projection' ? 'always' : 'demand'}
         gl={{ antialias: true, preserveDrawingBuffer: true }}>
         <OpticalScene geometry={geometry} preview={preview} mode={mode} distance={parameters.targetDistance}
           refractiveIndex={parameters.refractiveIndex} wireframe={wireframe} showGrid={showGrid}
           showRays={showRays} autoRotate={autoRotate} resetKey={resetKey} lightSource={parameters.lightSource}
           receiverWidth={parameters.receiverWidth} actualScale={actualScale} />
       </Canvas></ViewerBoundary> : <div className="viewer-empty">
-        {isProcessing ? <Spin size="large" /> : <img className="empty-lens-mark" src={`${import.meta.env.BASE_URL}lens-icon.svg`} alt="Caustic Lens" />}
+        {isProcessing ? <Spin size="large" /> : <img className="empty-lens-mark" src={lensIconUrl} alt="Caustic Lens" />}
         <h2>{isProcessing ? '正在构建透镜表面' : currentImage ? '等待生成透镜' : '光影，从一片透镜开始'}</h2>
         <span>{currentImage?.name ?? 'CAUSTIC LENS STUDIO'}</span>
       </div>}
