@@ -67,7 +67,7 @@ interface ProjectStore extends ProjectState {
 
 export const defaultParameters: CausticParameters = {
   focalLength: 200, // mm (0.2m, 基于Julia实现)
-  focalLengthMeters: 3.5, // 焦距（米），用于算法计算，默认3.5米
+  focalLengthMeters: 1.5, // 算法焦距（米）
   resolution: 128,
   material: 'acrylic',
   refractiveIndex: 1.49, // 典型的光学玻璃
