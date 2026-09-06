@@ -10,11 +10,14 @@ export interface CausticsRenderResult {
     focalLength: number;
     targetDistance: number;
     material: string;
+    lightSourceType?: 'point' | 'area' | 'parallel';
+    lightSourcePosition?: { x: number; y: number; z: number };
   };
   renderTime: number; // 渲染耗时（毫秒）
   status: 'success' | 'error' | 'processing';
   errorMessage?: string;
-  statistics?: { tracedRays: number; receivedRays: number; totalInternalReflections: number; screenWidth: number };
+  statistics?: { tracedRays: number; receivedRays: number; totalInternalReflections: number; screenWidth: number;
+    incidentPower?: number; receivedPower?: number; peakIrradiance?: number };
 }
 
 export interface ProgressDetails {
@@ -73,7 +76,7 @@ export const defaultParameters: CausticParameters = {
      type: 'parallel',
      intensity: 1.0,
      wavelength: 550,  // nm (绿光)
-     position: { x: 0, y: 0, z: 150 }, // mm (光源在透镜前方，距离透镜150mm)
+     position: { x: 0, y: 0, z: -160 }, // 150 mm before the default planar entrance at z = -10 mm.
      width: 50,  // 面光源默认宽度
      height: 50, // 面光源默认高度
      direction: { x: 0, y: 0, z: 1 } // 默认向前方向

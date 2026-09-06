@@ -17,8 +17,9 @@ export function CausticsRenderArea() {
         <div className="result-details"><div className="result-title"><strong>投影 {String(results.length - index).padStart(2, '0')}</strong>
           <Tag color={result.status === 'success' ? 'success' : result.status === 'error' ? 'error' : 'processing'}>
             {result.status === 'success' ? '完成' : result.status === 'error' ? '失败' : '计算中'}</Tag></div>
-          <span>{result.parameters.targetDistance} mm · {(result.renderTime / 1000).toFixed(2)} s</span>
+          <span>{result.parameters.lightSourceType === 'point' ? '点光源' : '平行光'} · {result.parameters.targetDistance} mm · {(result.renderTime / 1000).toFixed(2)} s</span>
           {result.statistics && <span>接收光线 {result.statistics.receivedRays.toLocaleString()} / {result.statistics.tracedRays.toLocaleString()}</span>}
+          {result.statistics && <span>接收屏 {result.statistics.screenWidth.toFixed(1)} mm</span>}
           <div className="result-bottom"><time>{new Date(result.timestamp).toLocaleTimeString('zh-CN')}</time><div>
             <Tooltip title="下载投影"><Button type="text" aria-label="下载投影" icon={<DownloadOutlined />} disabled={result.status !== 'success'}
               href={result.imageData || undefined} download={`caustics-${result.id}.png`} /></Tooltip>

@@ -70,6 +70,8 @@
 .viewer-toolbar .ant-segmented-item:hover:not(.ant-segmented-item-disabled) { color: #ececef; }
 .viewer-toolbar .ant-segmented-item-label { color: inherit; }
 .viewer-actions { display: flex; gap: 4px; align-items: center; }
+.viewer-modes { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.source-mode { border-left: 1px solid #33353b; }
 .viewer-toolbar .ant-btn { color: #a0a3ac; background: transparent; border-color: transparent; box-shadow: none; }
 .viewer-toolbar .ant-btn:disabled { color: #494b52; }
 .viewer-toolbar .ant-btn:not(:disabled):hover { color: #fff; background: #2c2d31; }
@@ -79,7 +81,9 @@
 .viewport { flex: 1; min-height: 0; position: relative; background: #08090b; }
 .viewport canvas { touch-action: none; }
 .viewport-label { position: absolute; left: 20px; bottom: 18px; font-size: 9px; color: #62656e; pointer-events: none; }
-.viewport-meta { position: absolute; left: 20px; top: 18px; pointer-events: none; }
+.viewport-meta { position: absolute; left: 20px; top: 18px; pointer-events: none; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.simulation-method { pointer-events: auto; font-size: 10px; color: #8f939d; }
+.empty-receiver-note { position: absolute; top: 46px; left: 20px; color: #c0a179; font-size: 11px; }
 .preview-status { display: inline-flex; align-items: center; gap: 7px; color: #94979f; font-size: 10px; }
 .preview-status i { width: 4px; height: 4px; background: #777; border-radius: 50%; }
 .preview-status.ready i { background: #e3c498; }
@@ -95,7 +99,12 @@
 .viewer-empty > .empty-lens-mark { width: 80px; height: 80px; opacity: 1; }
 .viewer-empty h2 { font-size: 20px; font-weight: 400; color: #d9dae0; }
 .viewer-empty > span { font-size: 9px; color: #565a65; overflow-wrap: anywhere; max-width: 100%; }
-.view-settings { display: flex; flex-direction: column; width: 210px; gap: 12px; padding: 8px 0; }
+.view-settings { display: flex; flex-direction: column; width: 240px; gap: 12px; padding: 8px 4px 8px 0; max-height: min(65dvh, max(120px, calc(100dvh - 360px))); overflow-y: auto; }
+.viewer-settings-drawer .view-settings { width: 100%; max-height: none; overflow: visible; padding: 0; gap: 16px; }
+.source-offsets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.source-design-note { font-size: 11px; color: #9b7d50; }
+.receiver-auto-setting { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+.source-distance-bar { border-top-color: #38342c; }
 .view-settings label { font-size: 12px; }
 .view-settings .ant-input-number { width: 100%; }
 .model-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 22px 0; border-bottom: 1px solid #dedfe5; margin-bottom: 24px; }
@@ -112,7 +121,7 @@
 .results-empty { min-height: 94px; display: flex; align-items: center; justify-content: center; gap: 14px; border-block: 1px dashed #d5d6dd; color: #aaacb4; font-size: 11px; }
 .empty-projection { width: 30px; height: 30px; border: 1px solid #d1d2da; background: #eeeef2; }
 .result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
-.projection-result { display: grid; grid-template-columns: 136px minmax(0, 1fr); min-height: 148px; background: #fff; border: 1px solid #e1e2e8; border-radius: 5px; overflow: hidden; }
+.projection-result { display: grid; grid-template-columns: 136px minmax(0, 1fr); min-height: 174px; background: #fff; border: 1px solid #e1e2e8; border-radius: 5px; overflow: hidden; }
 .result-image { background: #08090b; display: grid; place-items: center; min-width: 0; }
 .result-image .ant-image { width: 100%; }
 .result-image img { width: 100%; aspect-ratio: 1; object-fit: contain; }
@@ -156,7 +165,8 @@
   .projection-distance-bar .ant-input-number-input { font-size: 14px; }
   .model-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 20px; }
   .model-metrics > div:nth-child(odd) { padding-left: 0; } .model-metrics > div:nth-child(even) { border-right: 0; }
-  .projection-result { grid-template-columns: 106px minmax(0, 1fr); min-height: 142px; }
+  .projection-result { grid-template-columns: 106px minmax(0, 1fr); min-height: 168px; }
+  .viewer-modes { gap: 8px; } .viewer-modes .source-mode .ant-segmented-item { min-width: 54px; }
   .result-details { padding: 12px 10px 6px; gap: 8px; }
   .ant-btn { min-height: 36px; } .mobile-tools .ant-btn { min-height: 40px; }
   .controls-drawer .ant-input-number-input { font-size: 16px; }

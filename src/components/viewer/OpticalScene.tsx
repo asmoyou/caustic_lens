@@ -3,10 +3,11 @@ import { useThree } from '@react-three/fiber';
 import { Edges, Environment, Lightformer, OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { Box3, CanvasTexture, DoubleSide, LinearFilter, MathUtils, SRGBColorSpace, Vector3 } from 'three';
-import type { LensGeometry } from '../../types';
+import type { CausticParameters, LensGeometry } from '../../types';
 import type { ProjectionPreview } from './useProjectionPreview';
 import { toBufferGeometry } from '../../utils/geometry';
 import { createReceiverScreen } from './receiverScreen';
+import { estimateReceiverWidth } from '../../algorithms/projectionSetup';
 
 export type ViewerMode = 'optical' | 'model' | 'projection';
 interface SceneProps {
@@ -20,6 +21,9 @@ interface SceneProps {
   showRays: boolean;
   autoRotate: boolean;
   resetKey: number;
+  lightSource: CausticParameters['lightSource'];
+  receiverWidth?: number;
+  actualScale: boolean;
 }
 
 function CameraRig({ bounds, mode, autoRotate, resetKey }: {
@@ -53,16 +57,20 @@ function CameraRig({ bounds, mode, autoRotate, resetKey }: {
 }
 
 export function OpticalScene({ geometry, preview, mode, distance, refractiveIndex, wireframe,
-  showGrid, showRays, autoRotate, resetKey }: SceneProps) {
+  showGrid, showRays, autoRotate, resetKey, lightSource, receiverWidth, actualScale }: SceneProps) {
   const buffer = useMemo(() => toBufferGeometry(geometry), [geometry]);
   useEffect(() => () => buffer.dispose(), [buffer]);
   const box = buffer.boundingBox!;
   const dimensions = box.getSize(new Vector3());
   const center = box.getCenter(new Vector3());
-  const screenWidth = preview?.result.screenWidth ?? Math.max(dimensions.x, dimensions.y) * 1.3;
-  const displayDistance = Math.min(distance, Math.max(dimensions.x, dimensions.y) * 2.1);
+  const screenWidth = preview?.result.screenWidth ?? receiverWidth ?? estimateReceiverWidth(box, distance, lightSource);
+  const displayDistance = actualScale ? distance : Math.min(distance, Math.max(dimensions.x, dimensions.y) * 2.1);
   const screenZ = box.max.z + displayDistance;
-  const sourceZ = box.min.z - 75;
+  const pointSource = lightSource.type === 'point';
+  const sourceDistance = pointSource ? Math.max(1, box.min.z - lightSource.position.z) : 75;
+  const sourceZ = box.min.z - (actualScale ? sourceDistance : Math.min(sourceDistance, 75));
+  const sourceX = pointSource ? lightSource.position.x : center.x;
+  const sourceY = pointSource ? lightSource.position.y : center.y;
   const texture = useMemo(() => {
     if (!preview) return null;
     const canvas = document.createElement('canvas');
@@ -82,14 +90,19 @@ export function OpticalScene({ geometry, preview, mode, distance, refractiveInde
   const framing = useMemo(() => {
     if (mode === 'model') return box.clone().expandByScalar(3);
     const half = screenWidth / 2 + 5;
-    return new Box3(new Vector3(center.x - half, center.y - half, mode === 'projection' ? screenZ - 1 : sourceZ - 8),
+    const framing = new Box3(new Vector3(center.x - half, center.y - half, mode === 'projection' ? screenZ - 1 : sourceZ - 8),
       new Vector3(center.x + half, center.y + half, screenZ + 1));
-  }, [mode, box, center.x, center.y, screenWidth, screenZ, sourceZ]);
+    if (mode === 'optical') {
+      framing.expandByPoint(new Vector3(sourceX - 5, sourceY - 5, sourceZ - 5));
+      framing.expandByPoint(new Vector3(sourceX + 5, sourceY + 5, sourceZ + 5));
+    }
+    return framing;
+  }, [mode, box, center.x, center.y, screenWidth, screenZ, sourceZ, sourceX, sourceY]);
   const rayPositions = useMemo(() => {
     const positions: number[] = [];
     for (const path of preview?.result.rayPaths ?? []) {
-      const { entry, exit, target } = path;
-      positions.push(entry.x, entry.y, sourceZ + 1, entry.x, entry.y, entry.z,
+      const { origin, entry, exit, target } = path;
+      positions.push(origin.x, origin.y, sourceZ, entry.x, entry.y, entry.z,
         entry.x, entry.y, entry.z, exit.x, exit.y, exit.z,
         exit.x, exit.y, exit.z, target.x, target.y, screenZ);
     }
@@ -114,13 +127,17 @@ export function OpticalScene({ geometry, preview, mode, distance, refractiveInde
     </mesh>}
     {mode !== 'model' && <primitive object={receiver.object} position={[center.x, center.y, screenZ]} />}
     {mode === 'optical' && <>
-      <group position={[center.x, center.y, sourceZ]}>
+      {pointSource ? <group position={[sourceX, sourceY, sourceZ]}>
+        <mesh><sphereGeometry args={[2.5, 16, 12]} />
+          <meshBasicMaterial color={lightSource.intensity > 0 ? '#ffffff' : '#333333'} toneMapped={false} /></mesh>
+        <pointLight color="#ffffff" intensity={lightSource.intensity * 10000} decay={2} />
+      </group> : <group position={[center.x, center.y, sourceZ]}>
         <mesh position={[0, 0, -4]}><boxGeometry args={[dimensions.x + 8, dimensions.y + 8, 8]} />
           <meshStandardMaterial color="#25272a" metalness={0.5} roughness={0.4} /></mesh>
         <mesh position={[0, 0, 0.1]}><planeGeometry args={[dimensions.x - 4, dimensions.y - 4]} />
-          <meshBasicMaterial color="#eceeef" side={DoubleSide} toneMapped={false} /></mesh>
-      </group>
-      {showRays && rayPositions.length > 0 && <lineSegments>
+          <meshBasicMaterial color={lightSource.intensity > 0 ? '#eceeef' : '#1b1d20'} toneMapped={false} /></mesh>
+      </group>}
+      {showRays && lightSource.intensity > 0 && rayPositions.length > 0 && <lineSegments>
         <bufferGeometry><bufferAttribute attach="attributes-position" args={[rayPositions, 3]} /></bufferGeometry>
         <lineBasicMaterial color="#ffffff" transparent opacity={0.16} depthWrite={false} toneMapped={false} />
       </lineSegments>}

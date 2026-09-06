@@ -32,3 +32,13 @@ test('removing an image preserves settings and resetting restores shared default
   assert.deepEqual(useProjectStore.getState().parameters, defaultParameters);
   assert.notEqual(useProjectStore.getState().parameters, defaultParameters);
 });
+
+test('light source changes invalidate projections without regenerating the lens', () => {
+  useProjectStore.getState().setGeometry(geometry);
+  const before = useProjectStore.getState();
+  useProjectStore.getState().setParameters({ lightSource: { ...before.parameters.lightSource, type: 'point' } });
+  const after = useProjectStore.getState();
+  assert.equal(after.geometry, geometry);
+  assert.ok(after.revision > before.revision);
+  assert.deepEqual(after.causticsRenderResults, []);
+});

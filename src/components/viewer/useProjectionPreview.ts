@@ -43,7 +43,8 @@ export function useProjectionPreview() {
     };
     state.addCausticsRenderResult({ id, timestamp: Date.now(), status: 'processing', imageData: '', renderTime: 0,
       parameters: { focalLength: state.parameters.focalLengthMeters * 1000,
-        targetDistance: state.parameters.targetDistance, material: state.parameters.material } });
+        targetDistance: state.parameters.targetDistance, material: state.parameters.material,
+        lightSourceType: state.parameters.lightSource.type, lightSourcePosition: { ...state.parameters.lightSource.position } } });
     try {
       const worker = new Worker(new URL('../../workers/projection.worker.ts', import.meta.url), { type: 'module' });
       const job = { worker, id, revision: state.revision };
@@ -69,12 +70,14 @@ export function useProjectionPreview() {
             renderTime: performance.now() - started, statistics: {
               tracedRays: result.tracedRays, receivedRays: result.receivedRays,
               totalInternalReflections: result.totalInternalReflections, screenWidth: result.screenWidth,
+              incidentPower: result.incidentPower, receivedPower: result.receivedPower, peakIrradiance: result.peakIrradiance,
             } });
           finish();
         } catch { fail('投影图像生成失败'); }
       };
       worker.postMessage({ geometry: state.geometry, options: { refractiveIndex: state.parameters.refractiveIndex,
-        distance: state.parameters.targetDistance, intensity: state.parameters.lightSource.intensity } });
+        distance: state.parameters.targetDistance, intensity: state.parameters.lightSource.intensity,
+        lightSource: state.parameters.lightSource, screenWidth: state.parameters.receiverWidth } });
     } catch { fail('无法启动投影计算线程'); }
   }, []);
 

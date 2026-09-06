@@ -1,0 +1,95 @@
+import { test, expect } from '@playwright/test';
+
+test('point-source controls recompute the existing lens and allow receiver clipping', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '载入示例图案' }).click();
+  await page.getByRole('button', { name: '生成透镜', exact: true }).click();
+  const viewport = page.getByTestId('viewport');
+  const resultImage = page.locator('.projection-result img');
+  await expect(viewport).toHaveAttribute('data-projection-ready', 'true', { timeout: 90_000 });
+  const parallelImage = await resultImage.getAttribute('src');
+  const modelStatistics = await page.locator('.model-metrics').innerText();
+  await page.getByRole('radiogroup', { name: '光源类型' }).getByText('点光源', { exact: true }).click();
+  await expect(page.locator('.result-details')).toContainText('点光源');
+  await expect(resultImage).toBeVisible();
+  await expect.poll(() => resultImage.getAttribute('src')).not.toBe(parallelImage);
+  const pointImage = await resultImage.getAttribute('src');
+  await expect(page.getByRole('spinbutton', { name: '光源距离 (mm)', exact: true })).toHaveValue('150');
+  await page.getByRole('spinbutton', { name: '光源距离 (mm)', exact: true }).fill('300');
+  await page.getByRole('spinbutton', { name: '光源距离 (mm)', exact: true }).press('Tab');
+  await expect(resultImage).toBeVisible();
+  await expect.poll(() => resultImage.getAttribute('src')).not.toBe(pointImage);
+  await page.getByRole('button', { name: '视图设置', exact: true }).click();
+  await expect(page.getByText('当前透镜按平行光设计', { exact: true })).toBeVisible();
+  const centeredImage = await resultImage.getAttribute('src');
+  await page.getByRole('spinbutton', { name: '光源 X (mm)', exact: true }).fill('25');
+  await page.getByRole('spinbutton', { name: '光源 X (mm)', exact: true }).press('Tab');
+  await expect(resultImage).toBeVisible();
+  await expect.poll(() => resultImage.getAttribute('src')).not.toBe(centeredImage);
+  await page.getByText('实际距离比例', { exact: true }).click();
+  await expect(page.locator('.viewport-label')).toHaveText('光路 · 实际距离比例');
+  await page.getByRole('button', { name: '视图设置', exact: true }).click();
+  expect(await page.locator('.model-metrics').innerText()).toBe(modelStatistics);
+  await page.screenshot({ path: 'test-results/point-source-actual-scale.png', fullPage: true, animations: 'disabled' });
+  await page.getByRole('button', { name: '视图设置', exact: true }).click();
+  await page.getByText('实际距离比例', { exact: true }).click();
+  await page.getByRole('button', { name: '视图设置', exact: true }).click();
+  await page.screenshot({ path: 'test-results/point-source-optical.png', fullPage: true, animations: 'disabled' });
+  await page.getByRole('radiogroup', { name: '预览模式' }).getByText('投影', { exact: true }).click();
+  await expect(viewport).toHaveAttribute('data-projection-ready', 'true');
+  await page.screenshot({ path: 'test-results/point-source-receiver.png', fullPage: true, animations: 'disabled' });
+  const received = async () => Number((await page.locator('.result-details').innerText()).match(/接收光线 ([\d,]+)/)![1].replaceAll(',', ''));
+  const fullCount = await received();
+  await page.getByRole('button', { name: '视图设置', exact: true }).click();
+  await page.getByRole('switch', { name: '自动接收范围' }).click();
+  await page.getByRole('spinbutton', { name: '接收屏宽度 (mm)', exact: true }).fill('40');
+  await page.getByRole('spinbutton', { name: '接收屏宽度 (mm)', exact: true }).press('Tab');
+  await expect(page.locator('.result-details')).toContainText('接收屏 40.0 mm');
+  expect(await received()).toBeLessThan(fullCount / 10);
+  await page.getByRole('switch', { name: '自动接收范围' }).click();
+  await page.getByRole('button', { name: '视图设置', exact: true }).click();
+  await page.getByRole('radiogroup', { name: '光源类型' }).getByText('平行光', { exact: true }).click();
+  await expect(resultImage).toBeVisible();
+  await expect.poll(() => resultImage.getAttribute('src')).toBe(parallelImage);
+  expect(errors).toEqual([]);
+});
+
+test('point-source controls fit mobile and zero intensity produces zero simulated irradiance', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('navigation', { name: '项目工具' }).getByRole('button', { name: /图像/ }).click();
+  await page.getByRole('button', { name: '载入示例图案' }).click();
+  await page.getByRole('button', { name: '生成透镜', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('viewport')).toHaveAttribute('data-projection-ready', 'true', { timeout: 90_000 });
+  await page.getByRole('radiogroup', { name: '光源类型' }).getByText('点光源', { exact: true }).click();
+  await expect(page.locator('.result-details')).toContainText('点光源');
+  await expect(page.locator('.projection-result img')).toBeVisible();
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `test-results/point-source-mobile-${width}.png`, fullPage: true, animations: 'disabled' });
+  }
+  await page.getByRole('button', { name: '视图设置', exact: true }).click();
+  const intensity = page.getByRole('slider', { name: '光照强度', exact: true });
+  const drawer = page.getByRole('dialog', { name: '视图与投影', exact: true });
+  await expect(drawer).toBeVisible();
+  await expect.poll(async () => {
+    const bounds = await drawer.boundingBox();
+    return !!bounds && bounds.x >= 0 && bounds.x + bounds.width <= 320.5 && bounds.height <= 844;
+  }).toBe(true);
+  await page.screenshot({ path: 'test-results/point-source-mobile-settings.png', animations: 'disabled' });
+  await intensity.focus();
+  await intensity.press('Home');
+  await expect(intensity).toHaveAttribute('aria-valuenow', '0');
+  await expect(page.locator('.projection-result img')).toBeVisible();
+  await expect.poll(() => page.locator('.projection-result img').evaluate((img: HTMLImageElement) => {
+    const ctx = document.createElement('canvas').getContext('2d')!;
+    ctx.canvas.width = ctx.canvas.height = 256;
+    ctx.drawImage(img, 0, 0, 256, 256);
+    return Array.from(ctx.getImageData(0, 0, 256, 256).data).some((value, i) => i % 4 !== 3 && value !== 0);
+  })).toBe(false);
+});

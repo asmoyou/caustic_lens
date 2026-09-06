@@ -47,6 +47,7 @@ export interface CausticParameters {
   material: string;
   refractiveIndex: number;
   targetDistance: number;
+  receiverWidth?: number;
   rayCount?: number;
   convergenceThreshold?: number;
   maxIterations?: number;
