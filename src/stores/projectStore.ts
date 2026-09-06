@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { ProjectState, ImageData, CausticParameters, LensGeometry } from '../types';
 
 // 焦散渲染结果接口
-interface CausticsRenderResult {
+export interface CausticsRenderResult {
   id: string;
   timestamp: number;
   imageData: string; // base64 图像数据
@@ -16,7 +16,7 @@ interface CausticsRenderResult {
   errorMessage?: string;
 }
 
-interface ProgressDetails {
+export interface ProgressDetails {
   iteration?: number;
   totalIterations?: number;
   currentError?: number;
@@ -37,11 +37,15 @@ interface ProgressDetails {
 }
 
 interface ProjectStore extends ProjectState {
+  revision: number;
+  progress: number;
+  processingTime: number;
   targetShape: number[][] | null;
   progressDetails: ProgressDetails | null;
   iterationImages: string[]; // 存储迭代过程的图像base64数据
   causticsRenderResults: CausticsRenderResult[]; // 焦散渲染结果列表
   setImage: (image: ImageData) => void;
+  clearImage: () => void;
   setParameters: (params: Partial<CausticParameters>) => void;
   setGeometry: (geometry: LensGeometry) => void;
   setTargetShape: (targetShape: number[][]) => void;
@@ -57,10 +61,10 @@ interface ProjectStore extends ProjectState {
   reset: () => void;
 }
 
-const defaultParameters: CausticParameters = {
+export const defaultParameters: CausticParameters = {
   focalLength: 200, // mm (0.2m, 基于Julia实现)
   focalLengthMeters: 3.5, // 焦距（米），用于算法计算，默认3.5米
-  resolution: 512,  // 网格分辨率，匹配Julia实现的512x512
+  resolution: 128,
   material: 'acrylic',
   refractiveIndex: 1.49, // 典型的光学玻璃
   targetDistance: 1000,  // mm，调整为1000mm
@@ -77,16 +81,29 @@ const defaultParameters: CausticParameters = {
     iterations: 4,  // Julia中使用4次oneIteration调用
     tolerance: 0.00001,  // Julia中使用0.00001收敛阈值
     algorithm: 'sor',  // Julia实现使用SOR算法
-    useGPUAcceleration: true,   // 默认启用GPU加速
+    useGPUAcceleration: false,
     photonMapSize: 262144,  // 512*512，匹配Julia实现
     relaxationFactor: 1.99,  // Julia中omega = 1.99 (SOR松弛因子)
     learningRate: 0.1  // 基础学习率，算法中会自适应调整
   }
 };
 
+const emptyResults = {
+  geometry: null, targetShape: null, isProcessing: false, progress: 0,
+  processingTime: 0, progressDetails: null, error: null,
+  iterationImages: [], causticsRenderResults: [],
+};
+
+function releaseImage(image: ImageData | null) {
+  if (image?.url.startsWith('blob:')) URL.revokeObjectURL(image.url);
+}
+
 export const useProjectStore = create<ProjectStore>((set) => ({
+  revision: 0,
+  progress: 0,
+  processingTime: 0,
   currentImage: null,
-  parameters: defaultParameters,
+  parameters: structuredClone(defaultParameters),
   geometry: null,
   targetShape: null,
   isProcessing: false,
@@ -95,10 +112,24 @@ export const useProjectStore = create<ProjectStore>((set) => ({
   iterationImages: [],
   causticsRenderResults: [],
 
-  setImage: (image) => set({ currentImage: image, error: null }),
-  setParameters: (params) => set((state) => ({ 
-    parameters: { ...state.parameters, ...params } 
-  })),
+  setImage: (image) => set((state) => {
+    if (state.currentImage?.url !== image.url) releaseImage(state.currentImage);
+    return { ...emptyResults, currentImage: image, revision: state.revision + 1 };
+  }),
+  clearImage: () => set((state) => {
+    releaseImage(state.currentImage);
+    return { ...emptyResults, currentImage: null, revision: state.revision + 1 };
+  }),
+  setParameters: (params) => set((state) => {
+    const parameters = { ...state.parameters, ...params };
+    if (JSON.stringify(parameters) === JSON.stringify(state.parameters)) return state;
+    const geometryChanged = (['focalLengthMeters', 'resolution', 'refractiveIndex', 'optimization'] as const)
+      .some(key => JSON.stringify(parameters[key]) !== JSON.stringify(state.parameters[key]));
+    return {
+      ...(geometryChanged ? emptyResults : { causticsRenderResults: [] }),
+      parameters, revision: state.revision + 1,
+    };
+  }),
   setGeometry: (geometry) => set({ geometry }),
   setTargetShape: (targetShape) => set({ targetShape }),
   setProcessing: (processing) => set({ isProcessing: processing }),
@@ -120,15 +151,9 @@ export const useProjectStore = create<ProjectStore>((set) => ({
     causticsRenderResults: state.causticsRenderResults.filter(result => result.id !== id)
   })),
   clearCausticsRenderResults: () => set({ causticsRenderResults: [] }),
-  reset: () => set({
-    currentImage: null,
-    geometry: null,
-    targetShape: null,
-    isProcessing: false,
-    progressDetails: null,
-    error: null,
-    iterationImages: [],
-    causticsRenderResults: [],
-    parameters: defaultParameters,
+  reset: () => set((state) => {
+    releaseImage(state.currentImage);
+    return { ...emptyResults, currentImage: null,
+      parameters: structuredClone(defaultParameters), revision: state.revision + 1 };
   }),
 }));

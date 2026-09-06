@@ -3,6 +3,7 @@ export interface ImageData {
   file?: File;
   url: string;
   name: string;
+  size?: number;
   width?: number;
   height?: number;
   data?: number[][];
