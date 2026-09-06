@@ -32,6 +32,16 @@ function CameraRig({ bounds, mode, autoRotate, resetKey }: {
   const controls = useRef<OrbitControlsImpl>(null);
   const { camera, size, invalidate } = useThree();
   useEffect(() => {
+    const orbit = controls.current;
+    const wasRotating = orbit?.autoRotate ?? false;
+    if (orbit) {
+      // Flush pending rotation and pan inertia before assigning the fitted view.
+      const damping = orbit.enableDamping;
+      orbit.autoRotate = false;
+      orbit.enableDamping = false;
+      orbit.update();
+      orbit.enableDamping = damping;
+    }
     const center = bounds.getCenter(new Vector3());
     const direction = (mode === 'optical' ? new Vector3(-1.35, 0.48, -1) :
       mode === 'model' ? new Vector3(0.55, 0.25, 1) : new Vector3(0, 0, -1)).normalize();
@@ -49,8 +59,11 @@ function CameraRig({ bounds, mode, autoRotate, resetKey }: {
     camera.near = Math.max(0.5, distance / 100);
     camera.far = Math.max(5000, distance * 20);
     camera.updateProjectionMatrix();
-    controls.current?.target.copy(center);
-    controls.current?.update();
+    if (orbit) {
+      orbit.target.copy(center);
+      orbit.update();
+      orbit.autoRotate = wasRotating;
+    }
     invalidate();
   }, [camera, bounds, mode, resetKey, size.width, size.height, invalidate]);
   return <OrbitControls ref={controls} makeDefault autoRotate={autoRotate && mode !== 'projection'} autoRotateSpeed={0.7}

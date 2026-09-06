@@ -31,6 +31,7 @@ test('static previews stop drawing while rotation and camera changes remain resp
   await page.getByRole('button', { name: '自动旋转', exact: true }).click();
   await expect.poll(drawCalls).toBeGreaterThan(beforeRotation);
   await page.getByRole('button', { name: '重置视角', exact: true }).click();
+  await expect(page.getByRole('button', { name: '自动旋转', exact: true })).toHaveAttribute('aria-pressed', 'false');
   await expect.poll(isIdle).toBe(true);
   const beforeModeChange = await drawCalls();
   await page.getByRole('radiogroup', { name: '预览模式' }).getByText('投影', { exact: true }).click();
