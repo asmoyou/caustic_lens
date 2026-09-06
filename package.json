@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
+    "verify:site": "tsx scripts/verify-site.ts",
     "preview": "vite preview"
   },
   "dependencies": {

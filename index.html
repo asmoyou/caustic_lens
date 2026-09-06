@@ -5,10 +5,26 @@
     <link rel="icon" type="image/svg+xml" href="/src/assets/lens-icon.svg" />
     <meta name="theme-color" content="#191b20" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
-    <title>Caustic Lens · 焦散透镜设计</title>
+    <style>
+      body { margin: 0; background: #f4f4f6; color: #25272c; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+      .boot-shell { padding: 28px; max-width: 1100px; margin: 0 auto; }
+      .boot-shell header { display: flex; align-items: center; gap: 12px; font-size: 22px; }
+      .boot-shell h1 { font-size: 24px; margin: 36px 0 20px; }
+      .boot-shell nav { display: flex; flex-wrap: wrap; gap: 12px 24px; font-size: 13px; }
+      .boot-shell a { color: #6b5637; }
+      .boot-shell [role=status] { padding: 56px 24px; background: #191b20; color: #a6aab4; font-size: 14px; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main class="boot-shell">
+        <header><img src="/src/assets/lens-icon.svg" width="42" height="42" alt="" /><strong>Caustic Lens</strong></header>
+        <h1>焦散透镜工作台</h1>
+        <p role="status">正在载入工作台</p>
+        <noscript><p>JavaScript 未启用，交互工作台暂不可用。</p></noscript>
+        <nav aria-label="站点导航"><a href="./optics.html">焦散透镜与几何光学</a><a href="https://games.asmo.top/" target="_blank" rel="noopener noreferrer">Toy2Game 在线玩具箱</a><a href="https://www.asmo.top/" target="_blank" rel="noopener noreferrer">加工服务</a></nav>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

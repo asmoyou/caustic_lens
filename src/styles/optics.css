@@ -1,0 +1,34 @@
+* { box-sizing: border-box; letter-spacing: 0; }
+html { scroll-behavior: smooth; }
+body { margin: 0; color: #25272c; background: #f4f4f6; font: 14px/1.9 -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+a { color: #6b5637; text-underline-offset: 4px; }
+a:focus-visible { outline: 2px solid #b68849; outline-offset: 4px; }
+.guide-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 20px 32px; background: #fff; border-bottom: 1px solid #e3e4e8; }
+.guide-header > a:last-child { font-size: 12px; }
+.guide-brand { display: flex; gap: 12px; align-items: center; color: #25272c; text-decoration: none; font-size: 21px; font-weight: 600; line-height: 1.3; }
+.guide-brand img { display: block; flex-shrink: 0; }
+.guide-brand small { display: block; color: #9296a2; font-size: 10px; font-weight: 400; margin-top: 5px; }
+.optics-guide { max-width: 920px; margin: 0 auto; padding: 42px 32px 24px; }
+.guide-heading > span { color: #9b805b; font-size: 10px; }
+h1 { margin: 10px 0; font-size: 28px; line-height: 1.4; font-weight: 600; }
+.guide-heading p { font-size: 11px; color: #9296a2; }
+.guide-toc { display: flex; gap: 12px 24px; flex-wrap: wrap; padding: 20px 0; border-block: 1px solid #dddfe5; margin-top: 24px; font-size: 12px; }
+section { padding: 24px 0; border-bottom: 1px solid #dddfe5; scroll-margin-top: 16px; }
+h2 { font-size: 19px; line-height: 1.5; margin: 0 0 18px; font-weight: 600; }
+p { margin: 12px 0; }
+.guide-figure { margin: 24px 0 4px; }
+.guide-figure img { display: block; width: 100%; height: auto; }
+.guide-figure figcaption { color: #9296a2; font-size: 11px; margin-top: 8px; }
+code { font-size: 13px; white-space: normal; }
+.guide-table { max-width: 100%; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+th, td { border-bottom: 1px solid #dfe1e6; padding: 12px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+th:first-child { width: 130px; }
+thead { background: #e9e9ed; }
+tbody th { font-weight: 500; }
+ul { padding-left: 20px; }
+li { margin: 8px 0; overflow-wrap: anywhere; }
+.guide-footer { max-width: 920px; margin: 0 auto; padding: 20px 32px 32px; color: #9296a2; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; font-size: 11px; }
+.guide-footer nav { display: flex; flex-wrap: wrap; gap: 16px; }
+@media (max-width: 575px) { .guide-header { padding: 16px; gap: 12px; } .guide-brand { font-size: 18px; gap: 8px; } .guide-brand img { width: 34px; height: 34px; } .optics-guide { padding: 30px 20px 10px; } h1 { font-size: 24px; } h2 { font-size: 17px; } th:first-child { width: 90px; } th, td { padding: 10px 6px; } .guide-footer { padding-inline: 20px; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

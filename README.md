@@ -140,6 +140,9 @@ ports:
 
 ## 📚 详细文档
 
+- **[光学说明](https://caustic.asmo.top/optics.html)** - 可直接阅读的原理、参数与模型边界
+- **[SEO 与内容发现](docs/SEO.md)** - 正式域名、站点文件及部署检查
+
 - **[开发指南](docs/DEVELOPMENT.md)** - 详细的开发环境设置和工作流程
 - **[部署指南](docs/DEPLOYMENT.md)** - 各种部署方式和生产环境配置
 - **[API 文档](docs/API.md)** - 核心算法和组件 API

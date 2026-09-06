@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#191b20" />
+    <link rel="icon" type="image/svg+xml" href="/src/assets/lens-icon.svg" />
+    <link rel="stylesheet" href="/src/styles/optics.css" />
+  </head>
+  <body>
+    <header class="guide-header">
+      <a class="guide-brand" href="./"><img src="/src/assets/lens-icon.svg" width="42" height="42" alt="" /><span>Caustic Lens<small>光学设计工作室</small></span></a>
+      <a href="./">返回工作台</a>
+    </header>
+    <main class="optics-guide">
+      <div class="guide-heading"><span>OPTICS / MODEL NOTES</span><h1>焦散透镜与几何光学</h1>
+        <p>作者：小白客 · 内容核对：<time datetime="2026-09-07">2026-09-07</time></p></div>
+      <nav class="guide-toc" aria-label="内容目录"><a href="#caustics">焦散原理</a><a href="#sources">光源与坐标</a><a href="#parameters">参数定义</a><a href="#limits">模型边界</a><a href="#references">验证依据</a></nav>
+      <section id="caustics"><h2>焦散如何形成</h2>
+        <p>光线经过反射或折射后，在接收面上形成不均匀的能量分布，这类明暗结构称为焦散。透镜表面的局部斜率改变折射方向，进而改变光线在接收面的落点和照度。</p>
+        <p>Caustic Lens 以目标图像的亮度分布作为逆向设计输入，生成透镜三角网格；前向计算再使用该网格求交、经过入射和出射两个界面的折射，并统计接收面的落点。目标图像不直接作为前向仿真的投影结果。</p>
+        <figure class="guide-figure"><img src="/social-preview.png" width="1200" height="630" alt="Caustic Lens 工作台中根据示例图案计算得到的焦散投影" /><figcaption>工作台示例，投影为几何光学近似计算结果。</figcaption></figure>
+      </section>
+      <section id="sources"><h2>平行光、点光源与受光面</h2>
+        <p>平行光具有一致的入射方向。理想各向同性点光源从一个位置向外发散，其入射照度包含距离平方衰减与入射角余弦因子：<code>E ∝ I cos(θ) / r²</code>。</p>
+        <p>本项目的逆向设计按平行光计算。对同一网格改用点光源进行前向计算，通常会得到不同的图案；这不表示透镜已针对点光源重新优化。点光源强度采用相对单位，以距光源 1000 mm 处的法向照度作为参考，不是经过标定的瓦特或绝对辐照度。</p>
+        <p>光线沿正 Z 方向从透镜背面进入，经成形表面出射。接收屏受光面朝负 Z 方向，背板不透光。受光面视角中，图像右方对应世界坐标负 X，上方对应正 Y。</p>
+        <p>默认光路图对轴向间距作示意压缩；“实际距离比例”保留真实间距。计算本身始终使用物理距离，显示方式不改变光线落点的计算。</p>
+      </section>
+      <section id="parameters"><h2>参数与输出的含义</h2>
+        <div class="guide-table"><table><thead><tr><th scope="col">项目</th><th scope="col">当前定义</th></tr></thead><tbody>
+          <tr><th scope="row">算法焦距</th><td>默认 1.5 m，参与逆向表面计算；与接收屏的投影距离独立。</td></tr>
+          <tr><th scope="row">生成尺寸</th><td>固定 100 x 100 mm；导出支持缩放及坐标单位选择。</td></tr>
+          <tr><th scope="row">计算网格</th><td>64、128、256 或 512，默认 128 x 128；默认 4 次迭代。</td></tr>
+          <tr><th scope="row">接收屏范围</th><td>可手动指定宽度，或按发散与偏移估计范围。超出范围的光线不计入接收样本。</td></tr>
+          <tr><th scope="row">模型格式</th><td>STL、OBJ、PLY、STEP 和 JSON。STEP 为多面实体，并非光滑 NURBS 曲面；G-Code 尚未接入切片器。</td></tr>
+          <tr><th scope="row">设计报告</th><td>记录实际参数、模型统计和投影结果，内嵌图像并支持离线打开及打印。</td></tr>
+          <tr><th scope="row">运行环境</th><td>图像在浏览器内处理；交互工作台需要 JavaScript、WebGL 2 和 Web Worker，不需要上传到远端进行计算。</td></tr>
+        </tbody></table></div>
+      </section>
+      <section id="limits"><h2>这是不是完整的物理仿真</h2>
+        <p>这是基于实际网格的简化几何光学计算。当前没有模拟衍射、色散、菲涅耳损耗、吸收和多次内部反射；全内反射样本会被拒绝，而不是继续追踪其内部路径。</p>
+        <p>接收功率先按像素面积转换为相对照度，再映射为可显示的灰度。画面中的细条纹或噪声可能来自三角面片和有限采样误差，不能视作真实干涉现象。接收样本数量是采样诊断数据，不等于光学器件的整体效率。</p>
+        <p>逆向求解器的表面高度标定、图案误差和最终加工效果仍需要实物验证。它适合探索焦散几何与参数变化，不构成制造精度或成像质量保证。</p>
+      </section>
+      <section id="references"><h2>验证依据与源代码</h2>
+        <p>回归测试包含平行平板的折射方向、点光源的距离平方衰减、矩形孔径立体角、接收功率积分，以及受光面法线、背板遮挡和纹理坐标。模型导出还包含格式回读与 OpenCascade 的 STEP 导入检查。</p>
+        <ul>
+          <li><a href="https://pbr-book.org/4ed/Light_Sources/Point_Lights" rel="noopener noreferrer" target="_blank">Physically Based Rendering：Point Lights</a></li>
+          <li><a href="https://pbr-book.org/4ed/Radiometry,_Spectra,_and_Color/Radiometry" rel="noopener noreferrer" target="_blank">Physically Based Rendering：Radiometry</a></li>
+          <li><a href="https://github.com/asmoyou/caustic_lens/tree/main/tests" rel="noopener noreferrer" target="_blank">Caustic Lens 回归测试</a></li>
+          <li><a href="https://github.com/asmoyou/caustic_lens" rel="noopener noreferrer" target="_blank">Caustic Lens 项目源码</a></li>
+        </ul>
+      </section>
+    </main>
+    <footer class="guide-footer"><span>小白客 · Caustic Lens Designer</span><nav aria-label="友情链接"><a href="https://www.asmo.top/" target="_blank" rel="noopener noreferrer">加工服务</a><a href="https://games.asmo.top/" target="_blank" rel="noopener noreferrer">Toy2Game 在线玩具箱</a></nav></footer>
+  </body>
+</html>

@@ -1,9 +1,11 @@
-import { defineConfig } from 'vite'
+import { resolve } from 'node:path'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import { seoPlugin } from './build/seo'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
-  plugins: [react()],
+  plugins: [react(), seoPlugin(loadEnv(mode, process.cwd(), 'SITE_').SITE_URL)],
   // 根据环境变量决定base路径：
   // - GITHUB_PAGES=true 时使用 /caustic_lens/ (GitHub Pages部署)
   // - 其他情况使用 / (Docker部署或本地开发)
@@ -49,6 +51,7 @@ export default defineConfig(({ mode }) => ({
     assetsDir: 'assets',
     sourcemap: false,
     rollupOptions: {
+      input: { workbench: resolve(process.cwd(), 'index.html'), optics: resolve(process.cwd(), 'optics.html') },
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],

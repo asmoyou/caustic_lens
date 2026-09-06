@@ -9,6 +9,8 @@
 
 Use Node.js 22. Local Playwright tests use installed Google Chrome; CI installs Playwright Chromium. Screenshots are written under the ignored `test-results/` directory.
 
+CI browser tests run serially to avoid competing software-WebGL renderers. Static previews use demand rendering; camera updates explicitly invalidate the frame, and auto-rotation enables continuous rendering only while active. A draw-call regression verifies idle views stop submitting WebGL work. Failed browser tests retain traces. The logo source lives in `src/assets/` so its URL and raw report import both follow Vite's asset pipeline.
+
 ## Computation and Coordinates
 
 ### In-Scene Preview

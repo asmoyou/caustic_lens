@@ -138,6 +138,7 @@
 .workspace-footer a { color: #828899; }
 .friend-links { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
 .friend-links a:hover { color: #25272c; text-decoration: underline; }
+.footer-project { display: flex; flex-wrap: wrap; gap: 12px; }
 .export-panel > .ant-alert { margin-bottom: 20px; }
 .export-note { margin-bottom: 16px; }
 .export-panel .ant-form-item-label label { font-size: 12px; }

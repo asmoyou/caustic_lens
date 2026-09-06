@@ -16,6 +16,7 @@ RUN npm ci
 COPY . .
 
 # 构建应用
+ARG SITE_URL=https://caustic.asmo.top/
 RUN npm run build
 
 # 第二阶段：生产阶段

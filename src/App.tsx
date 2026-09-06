@@ -69,7 +69,8 @@ function App() {
             <div><span>面片</span><strong>{geometry?.faces.length.toLocaleString() ?? '-'}</strong></div>
           </div>
           <CausticsRenderArea />
-          <footer className="workspace-footer"><span>小白客 · Caustic Lens Designer</span>
+          <footer className="workspace-footer"><div className="footer-project"><span>小白客 · Caustic Lens Designer</span>
+            <a href={`${import.meta.env.BASE_URL}optics.html`} target="_blank" rel="noopener noreferrer">光学说明</a></div>
             <nav className="friend-links" aria-label="友情链接">
               <span>友情链接</span>
               <a href="https://www.asmo.top/" target="_blank" rel="noopener noreferrer">加工服务</a>
