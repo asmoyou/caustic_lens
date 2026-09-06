@@ -70,6 +70,7 @@
 .view-settings { display: flex; flex-direction: column; width: 210px; gap: 12px; padding: 8px 0; }
 .view-settings label { font-size: 12px; } .view-settings .ant-input-number { width: 100%; }
 .export-panel > .ant-alert { margin-bottom: 20px; } .export-note { margin-bottom: 16px; }
+.report-statistics { margin-bottom: 24px; }
 .section-heading { min-height: 36px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .section-heading h2 { font-size: 16px; font-weight: 600; } .section-heading h2 span { color: #8e9c94; margin-left: 12px; font-size: 12px; font-weight: 400; }
 .results-empty { min-height: 124px; display: flex; align-items: center; justify-content: center; gap: 18px; border-block: 1px dashed #cdd9d1; color: #89958d; font-size: 12px; }

@@ -1,4 +1,5 @@
-import type { LensGeometry, ImageData } from '../types';
+import type { LensGeometry, ImageData, CausticParameters } from '../types';
+import { validateGeometry } from './geometry';
 
 // 报告数据接口
 export interface ReportData {
@@ -6,14 +7,7 @@ export interface ReportData {
   generatedAt: Date;
   image: ImageData;
   geometry: LensGeometry;
-  parameters: {
-    focalLength: number;
-    refractiveIndex: number;
-    resolution: number;
-    rayCount: number;
-    convergenceThreshold: number;
-    maxIterations: number;
-  };
+  parameters: CausticParameters;
   statistics: {
     vertexCount: number;
     faceCount: number;
@@ -26,7 +20,10 @@ export interface ReportData {
 // HTML报告生成器
 export class HTMLReportGenerator {
   static generate(data: ReportData): string {
-    const { projectName, generatedAt, image, parameters, statistics } = data;
+    const { generatedAt, parameters, statistics } = data;
+    const projectName = escapeHTML(data.projectName);
+    const image = { ...data.image, name: escapeHTML(data.image.name), url: escapeHTML(data.image.url) };
+    const dimensions = GeometryAnalyzer.getBoundingBox(data.geometry).size;
     
     return `
 <!DOCTYPE html>
@@ -254,20 +251,20 @@ export class HTMLReportGenerator {
             <div class="card">
                 <div class="param-grid">
                     <div class="param-item">
-                        <div class="param-value">100.0</div>
+                        <div class="param-value">${dimensions.x.toFixed(2)}</div>
                         <div class="param-label">透镜宽度 (mm)</div>
                     </div>
                     <div class="param-item">
-                        <div class="param-value">100.0</div>
+                        <div class="param-value">${dimensions.y.toFixed(2)}</div>
                         <div class="param-label">透镜高度 (mm)</div>
                     </div>
                     <div class="param-item">
-                        <div class="param-value">5.0</div>
+                        <div class="param-value">${dimensions.z.toFixed(3)}</div>
                         <div class="param-label">厚度 (mm)</div>
                     </div>
                     <div class="param-item">
-                        <div class="param-value">${(parameters.focalLength || 0).toFixed(1)}</div>
-                        <div class="param-label">焦距 (mm)</div>
+                        <div class="param-value">${parameters.focalLengthMeters.toFixed(2)}</div>
+                        <div class="param-label">算法焦距 (m)</div>
                     </div>
                     <div class="param-item">
                         <div class="param-value">${(parameters.refractiveIndex || 1.49).toFixed(3)}</div>
@@ -286,16 +283,16 @@ export class HTMLReportGenerator {
             <div class="card">
                 <div class="param-grid">
                     <div class="param-item">
-                        <div class="param-value">${(parameters.rayCount || 10000).toLocaleString()}</div>
-                        <div class="param-label">光线数量</div>
+                        <div class="param-value">${(parameters.resolution ** 2).toLocaleString()}</div>
+                        <div class="param-label">目标网格单元</div>
                     </div>
                     <div class="param-item">
-                        <div class="param-value">${(parameters.convergenceThreshold || 0.001).toExponential(2)}</div>
+                        <div class="param-value">${(parameters.optimization.tolerance ?? 0.00001).toExponential(2)}</div>
                         <div class="param-label">收敛阈值</div>
                     </div>
                     <div class="param-item">
-                        <div class="param-value">${parameters.maxIterations || 100}</div>
-                        <div class="param-label">最大迭代次数</div>
+                        <div class="param-value">${parameters.optimization.iterations ?? 4}</div>
+                        <div class="param-label">迭代次数</div>
                     </div>
                 </div>
             </div>
@@ -418,7 +415,7 @@ export class HTMLReportGenerator {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 }
 
@@ -471,7 +468,7 @@ export class GeometryAnalyzer {
       const v3 = geometry.vertices[face[2]];
       
       // 计算四面体体积（以原点为顶点）
-      const tetraVolume = Math.abs(
+      const tetraVolume = (
         v1.x * (v2.y * v3.z - v2.z * v3.y) +
         v2.x * (v3.y * v1.z - v3.z * v1.y) +
         v3.x * (v1.y * v2.z - v1.z * v2.y)
@@ -517,6 +514,16 @@ export class ReportGenerator {
     parameters: ReportData['parameters'],
     processingTime: number
   ): Promise<ReportData> {
+    validateGeometry(geometry);
+    const blob = image.file ?? await fetch(image.url).then(response => {
+      if (!response.ok) throw new Error('源图像读取失败');
+      return response.blob();
+    });
+    if (!/^image\/(png|jpeg|webp|gif)$/.test(blob.type)) throw new Error('报告仅支持光栅图片');
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    const embeddedImage = { ...image, file: undefined, url: `data:${blob.type};base64,${btoa(binary)}` };
     const statistics = {
       vertexCount: geometry.vertices.length,
       faceCount: geometry.faces.length,
@@ -528,9 +535,9 @@ export class ReportGenerator {
     return {
       projectName,
       generatedAt: new Date(),
-      image,
+      image: embeddedImage,
       geometry,
-      parameters,
+      parameters: structuredClone(parameters),
       statistics
     };
   }
@@ -542,4 +549,9 @@ export class ReportGenerator {
   static getReportHTML(reportData: ReportData): string {
     return HTMLReportGenerator.generate(reportData);
   }
+}
+
+function escapeHTML(value: string): string {
+  const entities: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  return value.replace(/[&<>"']/g, character => entities[character]);
 }
