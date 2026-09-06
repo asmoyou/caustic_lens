@@ -69,7 +69,11 @@ function App() {
           </div>
           <CausticsRenderArea />
           <footer className="workspace-footer"><span>小白客 · Caustic Lens Designer</span>
-            <a href="https://www.asmo.top/" target="_blank" rel="noopener noreferrer">加工服务</a></footer>
+            <nav className="friend-links" aria-label="友情链接">
+              <span>友情链接</span>
+              <a href="https://www.asmo.top/" target="_blank" rel="noopener noreferrer">加工服务</a>
+              <a href="https://games.asmo.top/" target="_blank" rel="noopener noreferrer">Toy2Game 在线玩具箱</a>
+            </nav></footer>
         </main>
       </div>
       {!desktop && <Drawer title={<span><MenuOutlined /> 项目设置</span>} placement="left"

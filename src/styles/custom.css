@@ -134,8 +134,10 @@
 .result-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: auto; }
 .result-bottom time { font-size: 9px; color: #a0a2ab; }
 .result-bottom .ant-btn { color: #8c8f99; width: 28px; padding: 0; }
-.workspace-footer { display: flex; justify-content: space-between; padding: 26px 0; font-size: 10px; color: #a4a6b0; }
+.workspace-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 14px 24px; padding: 26px 0; font-size: 10px; color: #a4a6b0; }
 .workspace-footer a { color: #828899; }
+.friend-links { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.friend-links a:hover { color: #25272c; text-decoration: underline; }
 .export-panel > .ant-alert { margin-bottom: 20px; }
 .export-note { margin-bottom: 16px; }
 .export-panel .ant-form-item-label label { font-size: 12px; }
