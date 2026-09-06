@@ -41,7 +41,7 @@ function CameraRig({ bounds, mode, autoRotate, resetKey }: {
         Math.abs(offset.dot(up)) / tanV + offset.dot(direction));
     }
     camera.position.copy(center).addScaledVector(direction, distance * (mode === 'projection' ? 1.12 : 1.14));
-    camera.near = 0.1;
+    camera.near = Math.max(0.5, distance / 100);
     camera.far = Math.max(5000, distance * 20);
     camera.updateProjectionMatrix();
     controls.current?.target.copy(center);
@@ -114,7 +114,7 @@ export function OpticalScene({ geometry, preview, mode, distance, refractiveInde
         <boxGeometry args={[screenWidth + 6, screenWidth + 6, 1]} />
         <meshBasicMaterial color="#343639" />
       </mesh>
-      <mesh name="caustic-screen" userData={{ projectionReady: !!texture }}>
+      <mesh name="caustic-screen" position={[0, 0, 0.1]} userData={{ projectionReady: !!texture }}>
         <planeGeometry args={[screenWidth, screenWidth]} />
         <meshBasicMaterial map={texture} color={texture ? '#ffffff' : '#060708'} toneMapped={false} side={DoubleSide} />
       </mesh>
@@ -123,7 +123,7 @@ export function OpticalScene({ geometry, preview, mode, distance, refractiveInde
       <group position={[center.x, center.y, sourceZ]}>
         <mesh position={[0, 0, -4]}><boxGeometry args={[dimensions.x + 8, dimensions.y + 8, 8]} />
           <meshStandardMaterial color="#25272a" metalness={0.5} roughness={0.4} /></mesh>
-        <mesh><planeGeometry args={[dimensions.x - 4, dimensions.y - 4]} />
+        <mesh position={[0, 0, 0.1]}><planeGeometry args={[dimensions.x - 4, dimensions.y - 4]} />
           <meshBasicMaterial color="#eceeef" side={DoubleSide} toneMapped={false} /></mesh>
       </group>
       {showRays && rayPositions.length > 0 && <lineSegments>
@@ -132,7 +132,7 @@ export function OpticalScene({ geometry, preview, mode, distance, refractiveInde
       </lineSegments>}
     </>}
     {showGrid && mode !== 'projection' && <gridHelper args={[600, 30, '#35363a', '#202125']}
-      position={[center.x, box.min.y - 8, (sourceZ + screenZ) / 2]} />}
+      position={[center.x, Math.min(box.min.y, center.y - screenWidth / 2) - 8, (sourceZ + screenZ) / 2]} />}
     <CameraRig bounds={framing} mode={mode} autoRotate={autoRotate} resetKey={resetKey} />
   </>;
 }

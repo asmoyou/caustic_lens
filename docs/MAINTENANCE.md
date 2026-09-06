@@ -11,6 +11,12 @@ Use Node.js 22. Local Playwright tests use installed Google Chrome; CI installs 
 
 ## Computation and Coordinates
 
+### In-Scene Preview
+
+After model generation, a debounced projection worker automatically produces the current preview. The three-dimensional receiver screen and the downloadable image use the same pixel buffer. A bounded set of actual ray paths is returned for visualization. Distance and illumination changes cancel outdated work and refresh the preview; manual rendering is still available.
+
+The optical view uses a black background, white illumination and a colorless transmissive material. Its axial separation is compressed to keep the emitter, lens and receiver visible together and is explicitly labeled as a schematic. Ray calculations and export coordinates retain their physical values. Model and front-projection modes allow inspection without that schematic arrangement.
+
 Image preprocessing preserves aspect ratio, composites transparency over black and downsamples to the selected bounded resolution before analysis. Target images use `[y][x]`; the legacy solver uses `[x][y]`, with an explicit conversion at its boundary.
 
 Generation and projection run in separate Web Workers. A project revision invalidates pending results when input changes. Workers terminate on cancellation or invalidation. Projection distance and illumination changes preserve the model but clear prior projections.

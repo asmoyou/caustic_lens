@@ -1,11 +1,11 @@
 * { box-sizing: border-box; letter-spacing: 0; }
 html, body, #root { margin: 0; min-height: 100%; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; color: #242c2b; background: #f5f7f6; -webkit-font-smoothing: antialiased; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; color: #25272c; background: #f4f4f6; -webkit-font-smoothing: antialiased; }
 button, input { font: inherit; }
 button, a, input { -webkit-tap-highlight-color: transparent; }
-button:focus-visible, a:focus-visible { outline: 2px solid #16796d; outline-offset: 3px; }
+button:focus-visible, a:focus-visible { outline: 2px solid #b68849; outline-offset: 3px; }
 img, canvas { display: block; }
-a { color: #16796d; text-decoration: none; }
+a { color: #535e70; text-decoration: none; }
 h1, h2, h3, p { margin: 0; }
 figure { margin: 0; }
 small { font-size: 12px; font-weight: 400; }

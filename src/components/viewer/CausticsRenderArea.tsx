@@ -5,7 +5,7 @@ import { useProjectStore } from '../../stores/projectStore';
 export function CausticsRenderArea() {
   const { causticsRenderResults: results, deleteCausticsRenderResult, clearCausticsRenderResults } = useProjectStore();
   return <section className="projection-results">
-    <div className="section-heading"><h2>焦散投影 <span>{results.length.toString().padStart(2, '0')}</span></h2>
+    <div className="section-heading"><h2>投影记录 <span>{results.length.toString().padStart(2, '0')}</span></h2>
       {results.length > 0 && <Popconfirm title="清空全部投影结果？" onConfirm={clearCausticsRenderResults}>
         <Tooltip title="清空结果"><Button type="text" aria-label="清空结果" icon={<ClearOutlined />}
           disabled={results.some(result => result.status === 'processing')} /></Tooltip></Popconfirm>}

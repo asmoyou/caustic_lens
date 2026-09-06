@@ -5,6 +5,9 @@ test('projection appears automatically on the 3D screen and follows distance cha
   page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/');
+  await expect(page.locator('.brand img')).toBeVisible();
+  expect(await page.locator('.brand img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(64);
+  await page.screenshot({ path: 'test-results/studio-empty.png', fullPage: true });
   await page.getByRole('button', { name: '载入示例图案' }).click();
   await page.getByRole('button', { name: '生成透镜', exact: true }).click();
   const viewport = page.getByTestId('viewport');
@@ -41,6 +44,7 @@ test('projection appears automatically on the 3D screen and follows distance cha
   expect(await page.locator('.projection-result img').getAttribute('src')).not.toBe(previous);
 
   await page.getByRole('radiogroup', { name: '预览模式' }).getByText('模型', { exact: true }).click();
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: 'test-results/transparent-lens.png', fullPage: true, animations: 'disabled' });
   await page.getByRole('radiogroup', { name: '预览模式' }).getByText('光路', { exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -50,4 +54,17 @@ test('projection appears automatically on the 3D screen and follows distance cha
   await expect.poll(async () => (await pixelStats()).white).toBeGreaterThan(300);
   await page.screenshot({ path: 'test-results/projection-mobile.png', fullPage: true, animations: 'disabled' });
   expect(errors).toEqual([]);
+});
+
+test('parameters can regenerate the model without switching back to the upload tab', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '载入示例图案' }).click();
+  await page.getByRole('tab', { name: /参数/ }).click();
+  await page.getByRole('spinbutton', { name: '算法焦距 (m)' }).fill('2.5');
+  await page.getByRole('spinbutton', { name: '算法焦距 (m)' }).press('Tab');
+  await page.getByRole('button', { name: /应用参数并生成/ }).click();
+  await expect(page.getByTestId('viewport')).toHaveAttribute('data-projection-ready', 'true', { timeout: 90_000 });
+  await expect(page.getByRole('button', { name: '导出模型', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: '导出模型', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '导出模型' })).toBeVisible();
 });

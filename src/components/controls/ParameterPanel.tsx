@@ -1,6 +1,7 @@
 import { Button, Collapse, Form, InputNumber, Select, Slider, Tooltip } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { defaultParameters, useProjectStore } from '../../stores/projectStore';
+import { startGeneration } from '../../utils/generationJob';
 
 interface NumberControlProps {
   label: string; value: number; min: number; max: number; step?: number;
@@ -16,7 +17,7 @@ function NumberControl({ label, value, min, max, step = 1, onChange }: NumberCon
 }
 
 export function ParameterPanel() {
-  const { parameters: p, setParameters, isProcessing } = useProjectStore();
+  const { parameters: p, setParameters, isProcessing, currentImage } = useProjectStore();
   const optimization = (value: Partial<typeof p.optimization>) => setParameters({ optimization: { ...p.optimization, ...value } });
   return <section className="parameter-panel">
     <div className="panel-heading"><h2>设计参数</h2><Tooltip title="恢复默认参数">
@@ -46,5 +47,7 @@ export function ParameterPanel() {
           onChange={relaxationFactor => optimization({ relaxationFactor })} />
       </> }]} />
     </Form>
+    {currentImage && <Button className="apply-parameters" type="primary" block icon={<PlayCircleOutlined />}
+      loading={isProcessing} onClick={() => void startGeneration()}>应用参数并生成</Button>}
   </section>;
 }
