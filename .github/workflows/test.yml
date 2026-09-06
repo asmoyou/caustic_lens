@@ -20,7 +20,7 @@ jobs:
           docker run --rm -v "$PWD/nginx.conf:/etc/nginx/nginx.conf:ro" nginx:alpine nginx -t
           docker run -d --rm --name caustic-http -p 4174:80 -v "$PWD/nginx.conf:/etc/nginx/nginx.conf:ro" -v "$PWD/dist:/usr/share/nginx/html:ro" nginx:alpine
           trap 'docker rm -f caustic-http' EXIT
-          curl --retry 10 --retry-connrefused --retry-delay 1 --fail http://127.0.0.1:4174/health
+          curl --retry 10 --retry-all-errors --retry-delay 1 --retry-max-time 30 --fail http://127.0.0.1:4174/health
           npm run verify:site -- http://127.0.0.1:4174/
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
