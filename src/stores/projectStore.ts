@@ -14,6 +14,7 @@ export interface CausticsRenderResult {
   renderTime: number; // 渲染耗时（毫秒）
   status: 'success' | 'error' | 'processing';
   errorMessage?: string;
+  statistics?: { tracedRays: number; receivedRays: number; totalInternalReflections: number; screenWidth: number };
 }
 
 export interface ProgressDetails {
