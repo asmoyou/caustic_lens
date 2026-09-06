@@ -6,7 +6,7 @@ yarn-error.log*
 
 # Build outputs
 dist
-build
+# build/ contains source code used by vite.config.ts.
 
 # Development files
 .env.local

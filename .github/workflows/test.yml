@@ -15,10 +15,11 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - name: Verify production HTTP responses
+      - name: Build and verify production Docker image
         run: |
-          docker run --rm -v "$PWD/nginx.conf:/etc/nginx/nginx.conf:ro" nginx:alpine nginx -t
-          docker run -d --rm --name caustic-http -p 4174:80 -v "$PWD/nginx.conf:/etc/nginx/nginx.conf:ro" -v "$PWD/dist:/usr/share/nginx/html:ro" nginx:alpine
+          docker build --target production -t caustic-http .
+          docker run --rm caustic-http nginx -t
+          docker run -d --rm --name caustic-http -p 4174:80 caustic-http
           trap 'docker rm -f caustic-http' EXIT
           curl --retry 10 --retry-all-errors --retry-delay 1 --retry-max-time 30 --fail http://127.0.0.1:4174/health
           npm run verify:site -- http://127.0.0.1:4174/
