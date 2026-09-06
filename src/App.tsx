@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, ConfigProvider, Drawer, Grid, Popconfirm, Tabs, Tag, Tooltip } from 'antd';
+import { App as AntApp, Button, ConfigProvider, Drawer, Grid, Popconfirm, Tabs, Tag, Tooltip } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { DownloadOutlined, FileAddOutlined, FileTextOutlined, MenuOutlined, SettingOutlined, UploadOutlined } from '@ant-design/icons';
 import { LensViewer } from './components/viewer/LensViewer';
@@ -30,7 +30,7 @@ function App() {
     colorText: '#242c2b', colorTextSecondary: '#6b7473', colorBorder: '#dce2df',
     borderRadius: 6, fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
   } }}>
-    <div className="app-shell">
+    <AntApp><div className="app-shell">
       <header className="app-header">
         <div className="brand"><img src={`${import.meta.env.BASE_URL}lens-icon.svg`} alt="" />
           <div><strong>Caustic Lens</strong><span>焦散透镜设计</span></div></div>
@@ -71,7 +71,7 @@ function App() {
         width="min(360px, calc(100vw - 24px))" open={drawerOpen} onClose={() => setDrawerOpen(false)}
         className="controls-drawer" forceRender>{panel}</Drawer>}
       {reportOpen && <ReportDialog visible onCancel={() => setReportOpen(false)} />}
-    </div>
+    </div></AntApp>
   </ConfigProvider>;
 }
 

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Image, Progress, Space, Tooltip, Upload, message } from 'antd';
+import { App, Alert, Button, Image, Progress, Space, Tooltip, Upload } from 'antd';
 import { DeleteOutlined, PictureOutlined, PlayCircleOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
 import { useProjectStore } from '../../stores/projectStore';
 import { cancelGeneration, startGeneration } from '../../utils/generationJob';
 
 export function ImageUpload() {
+  const { message } = App.useApp();
   const { currentImage, setImage, clearImage, geometry, isProcessing, progress, progressDetails, error,
     iterationImages } = useProjectStore();
   const [uploading, setUploading] = useState(false);
