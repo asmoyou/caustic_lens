@@ -29,6 +29,14 @@ test('flat slab transmits all sampled rays and creates a nonblank projection', (
   const result = traceCaustics(slab(), options);
   assert.equal(result.receivedRays, 1024);
   assert.equal(result.totalInternalReflections, 0);
+  assert.equal(result.rayPaths.length, 49);
+  for (const path of result.rayPaths) {
+    assert.ok(Math.abs(path.entry.z + 5) < 1e-10);
+    assert.ok(Math.abs(path.exit.z - 5) < 1e-10);
+    assert.equal(path.target.z, 1005);
+    assert.equal(path.entry.x, path.target.x);
+    assert.equal(path.entry.y, path.target.y);
+  }
   assert.ok(result.pixels[(16 * 32 + 16) * 4] > 100);
   assert.equal(result.pixels[0], 0);
   assert.deepEqual(result.pixels, traceCaustics(slab(), options).pixels);

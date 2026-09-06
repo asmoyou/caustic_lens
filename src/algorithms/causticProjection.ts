@@ -1,6 +1,6 @@
 import { DoubleSide, Ray, Vector3 } from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
-import type { LensGeometry } from '../types';
+import type { LensGeometry, Point3D } from '../types';
 import { toBufferGeometry } from '../utils/geometry';
 
 export interface ProjectionOptions {
@@ -18,7 +18,10 @@ export interface ProjectionResult {
   receivedRays: number;
   totalInternalReflections: number;
   screenWidth: number;
+  rayPaths: ProjectionRayPath[];
 }
+
+export interface ProjectionRayPath { entry: Point3D; exit: Point3D; target: Point3D }
 
 export function refract(incident: Vector3, outwardNormal: Vector3, ratio: number): Vector3 | null {
   const normal = outwardNormal.clone().normalize();
@@ -50,6 +53,8 @@ export function traceCaustics(geometry: LensGeometry, options: ProjectionOptions
     const energy = new Float32Array(resolution * resolution);
     const ray = new Ray(new Vector3(), new Vector3(0, 0, 1));
     let receivedRays = 0, totalInternalReflections = 0;
+    const rayPaths: ProjectionRayPath[] = [];
+    const pathSamples = new Set(Array.from({ length: 7 }, (_, i) => Math.floor((i + 0.5) * samples / 7)));
     const epsilon = Math.max(size.length() * 1e-6, 1e-4);
     for (let y = 0; y < samples; y++) {
       for (let x = 0; x < samples; x++) {
@@ -72,6 +77,13 @@ export function traceCaustics(geometry: LensGeometry, options: ProjectionOptions
         const py = (0.5 - (exit.point.y + outgoing.y * t - center.y) / screenWidth) * resolution - 0.5;
         if (px < 0 || px >= resolution - 1 || py < 0 || py >= resolution - 1) continue;
         receivedRays++;
+        if (pathSamples.has(x) && pathSamples.has(y)) {
+          rayPaths.push({
+            entry: { x: entry.point.x, y: entry.point.y, z: entry.point.z },
+            exit: { x: exit.point.x, y: exit.point.y, z: exit.point.z },
+            target: { x: exit.point.x + outgoing.x * t, y: exit.point.y + outgoing.y * t, z: screenZ },
+          });
+        }
         const ix = Math.floor(px), iy = Math.floor(py), fx = px - ix, fy = py - iy;
         energy[iy * resolution + ix] += (1 - fx) * (1 - fy);
         energy[iy * resolution + ix + 1] += fx * (1 - fy);
@@ -87,6 +99,6 @@ export function traceCaustics(geometry: LensGeometry, options: ProjectionOptions
       pixels.set([brightness, brightness, brightness, 255], i * 4);
     }
     onProgress?.(100);
-    return { pixels, resolution, tracedRays: samples * samples, receivedRays, totalInternalReflections, screenWidth };
+    return { pixels, resolution, tracedRays: samples * samples, receivedRays, totalInternalReflections, screenWidth, rayPaths };
   } finally { buffer.dispose(); }
 }

@@ -88,7 +88,7 @@ test('desktop and mobile expose a visible, interactive model and a downloadable 
   await page.getByRole('button', { name: '自动旋转', exact: true }).click();
   await expect.poll(async () => JSON.stringify(await pixels()) !== JSON.stringify(initial)).toBe(true);
   await page.getByRole('button', { name: '重置视角', exact: true }).click();
-  await page.getByRole('button', { name: '渲染投影', exact: true }).click();
+  await expect(page.getByTestId('viewport')).toHaveAttribute('data-projection-ready', 'true');
   await expect(page.locator('.projection-result img')).toBeVisible({ timeout: 60_000 });
   const imagePixels = await page.locator('.projection-result img').evaluate((img: HTMLImageElement) => {
     const ctx = document.createElement('canvas').getContext('2d')!;
