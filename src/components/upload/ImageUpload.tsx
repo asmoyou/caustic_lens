@@ -83,7 +83,7 @@ export const ImageUpload: React.FC = () => {
 
       // 处理图像
       const processor = new ImageProcessor();
-      const processingResult = await processor.processImage(currentImage);
+      const processingResult = await processor.processImage(currentImage, parameters.resolution);
       console.log('图像处理完成:', processingResult);
       setProgress(30);
 

@@ -1,5 +1,5 @@
-import * as THREE from 'three';
-import type { CausticParameters, LensGeometry, ImageData, Point3D } from '../../types';
+import type { CausticParameters, LensGeometry, Point2D } from '../../types';
+import { normalizeTarget, triangleCollapseTimes } from './numerics';
 
 /**
  * Caustics Engineering Algorithm Implementation
@@ -8,9 +8,9 @@ import type { CausticParameters, LensGeometry, ImageData, Point3D } from '../../
  */
 export class CausticsEngineeringAlgorithm {
   private shouldStop = false;
-  private parameters: any;
+  private parameters: CausticParameters;
 
-  constructor(parameters: any) {
+  constructor(parameters: CausticParameters) {
     this.parameters = parameters;
   }
 
@@ -21,20 +21,34 @@ export class CausticsEngineeringAlgorithm {
     this.shouldStop = true;
   }
 
+  private checkCancellation(): void {
+    if (this.shouldStop) throw new DOMException('计算已取消', 'AbortError');
+  }
+
   /**
    * 主算法入口
    * 对应Julia中的engineer_caustics函数
    */
   async generateLens(
     targetImage: number[][],
-    onProgress?: (progress: number, status: string) => void
+    onProgress?: (progress: number, status: string) => void,
+    onIteration?: (loss: number[][], iteration: number) => void
   ): Promise<LensGeometry> {
     console.log('开始Caustics Engineering算法');
     
-    // 使用图像的实际尺寸创建网格，对应Julia版本的逻辑
+    this.checkCancellation();
+    const normalizedRows = normalizeTarget(targetImage);
+    // Images are row-major; the solver's matrices are indexed [x][y].
     const imageHeight = targetImage.length;
     const imageWidth = targetImage[0].length;
-    const iterations = this.parameters.iterations || 4;
+    const iterations = this.parameters.optimization.iterations ?? 4;
+    if (!Number.isInteger(iterations) || iterations < 1 || iterations > 20) {
+      throw new Error('迭代次数必须在 1 到 20 之间');
+    }
+    if (!(this.parameters.refractiveIndex > 1 && this.parameters.refractiveIndex <= 2)) {
+      throw new Error('折射率必须大于 1 且不超过 2');
+    }
+    if (!(this.parameters.focalLengthMeters > 0)) throw new Error('算法焦距必须大于 0');
     
     console.log(`算法参数 - 图像尺寸: ${imageWidth}x${imageHeight}, 网格尺寸: ${imageWidth + 1}x${imageHeight + 1}, 迭代次数: ${iterations}`);
     
@@ -43,36 +57,22 @@ export class CausticsEngineeringAlgorithm {
     console.log(`初始网格创建完成 - 节点数: ${mesh.nodes.length}, 三角形数: ${mesh.triangles.length}`);
     
     // 能量归一化 - 对应Julia版本的boost_ratio逻辑
-    const meshSum = imageWidth * imageHeight;
-    let imageSum = 0;
-    for (let x = 0; x < imageWidth; x++) {
-      for (let y = 0; y < imageHeight; y++) {
-        imageSum += targetImage[x][y];
-      }
-    }
-    const boostRatio = meshSum / imageSum;
-    
-    // 应用能量归一化到目标图像
-    const normalizedImage: number[][] = [];
-    for (let x = 0; x < imageWidth; x++) {
-      normalizedImage[x] = [];
-      for (let y = 0; y < imageHeight; y++) {
-        normalizedImage[x][y] = targetImage[x][y] * boostRatio;
-      }
-    }
-    
-    console.log(`能量归一化完成 - 原始图像总和: ${imageSum.toFixed(2)}, 网格总和: ${meshSum}, 增强比例: ${boostRatio.toFixed(4)}`);
+    const normalizedImage = Array.from({ length: imageWidth }, (_, x) =>
+      Array.from({ length: imageHeight }, (_, y) => normalizedRows[y][x]));
     
     // 迭代优化
     for (let i = 0; i < iterations; i++) {
-      if (this.shouldStop) break;
+      this.checkCancellation();
       
       console.log(`开始第 ${i + 1} 次迭代`);
       // 迭代进度占总进度的60%（从20%到80%）
       const iterationProgress = 20 + (i / iterations) * 60;
       onProgress?.(iterationProgress, `执行第 ${i + 1} 次迭代...`);
       
-      await this.oneIteration(mesh, normalizedImage, onProgress, i + 1);
+      await this.oneIteration(mesh, normalizedImage, (progress, status) => {
+        const fraction = Math.min(1, Math.max(0, (progress - i * 20) / 20));
+        onProgress?.(20 + ((i + fraction) / iterations) * 60, status);
+      }, i + 1, onIteration);
       
       const iterationCompleteProgress = 20 + ((i + 1) / iterations) * 60;
       onProgress?.(iterationCompleteProgress, `第 ${i + 1} 次迭代完成`);
@@ -81,12 +81,13 @@ export class CausticsEngineeringAlgorithm {
     onProgress?.(85, '计算透镜表面高度...');
     
     // 计算透镜表面高度 - 对应Julia的findSurface函数
-    const { heights, metersPerPixel } = await this.findSurface(mesh, normalizedImage, onProgress);
+    const { heights } = await this.findSurface(mesh, onProgress);
     
     onProgress?.(90, '设置网格高度...');
     
     // 设置网格高度 - 对应Julia的setHeights!函数
-    this.setHeights(mesh, heights, metersPerPixel);
+    this.checkCancellation();
+    this.setHeights(mesh, heights);
     
     onProgress?.(95, '构建实体网格...');
     
@@ -167,7 +168,8 @@ export class CausticsEngineeringAlgorithm {
     mesh: Mesh,
     targetImage: number[][],
     onProgress?: (progress: number, status: string) => void,
-    iterationNumber: number = 1
+    iterationNumber: number = 1,
+    onIteration?: (loss: number[][], iteration: number) => void
   ): Promise<void> {
     console.log(`第${iterationNumber}次迭代 - 目标图像尺寸: ${targetImage.length}x${targetImage[0].length}`);
     
@@ -198,11 +200,11 @@ export class CausticsEngineeringAlgorithm {
     onProgress?.(baseProgress + 18, `第${iterationNumber}次迭代: 生成可视化图像...`);
     
     // 生成可视化图像 - 对应Julia的quantifyLoss!函数
-    const iterationImage = this.quantifyLoss(mesh, D, phi);
-    console.log('生成迭代可视化图像:', iterationImage.substring(0, 50) + '...');
+    onIteration?.(D, iterationNumber);
     
     // 立即通过自定义事件将图像传递给前端
     if (typeof window !== 'undefined') {
+      const iterationImage = this.quantifyLoss(D);
       window.dispatchEvent(new CustomEvent('iterationImageGenerated', {
         detail: { imageData: iterationImage, iteration: iterationNumber }
       }));
@@ -365,21 +367,18 @@ export class CausticsEngineeringAlgorithm {
     onProgress?: (progress: number, status: string) => void,
     iterationNumber: number = 1
   ): Promise<void> {
-    const omega = 1.99; // 松弛因子，与Julia版本一致
+    const omega = this.parameters.optimization.relaxationFactor ?? 1.99;
     const maxIterations = 10000; // 最大迭代次数，与Julia版本一致
-    const tolerance = 0.00001;
+    const tolerance = this.parameters.optimization.tolerance ?? 0.00001;
     
     // 执行松弛法迭代（完全对应Julia版本）
     for (let i = 1; i <= maxIterations; i++) {
-      if (this.shouldStop) break;
+      this.checkCancellation();
       
       const maxUpdate = this.relaxStep(phi, D, omega);
       
       // 检查NaN（对应Julia版本）
-      if (isNaN(maxUpdate)) {
-        console.log('MAX UPDATE WAS NaN. CANNOT BUILD PHI');
-        return;
-      }
+      if (!Number.isFinite(maxUpdate)) throw new Error('求解出现无效数值，请调整参数');
       
       // 每500次迭代输出一次（对应Julia版本）
       if (i % 500 === 0) {
@@ -482,6 +481,7 @@ export class CausticsEngineeringAlgorithm {
         }
         
         phi[x][y] += delta;
+        if (!Number.isFinite(phi[x][y])) throw new Error('求解发散，请降低松弛因子');
       }
     }
     
@@ -542,8 +542,8 @@ export class CausticsEngineeringAlgorithm {
     // 更新节点位置
     for (const point of mesh.nodes) {
       const v = velocities[point.ix!][point.iy!];
-      point.x = v.x * delta + point.x;
-      point.y = v.y * delta + point.y;
+      if (point.ix !== 0 && point.ix !== mesh.width - 1) point.x += v.x * delta;
+      if (point.iy !== 0 && point.iy !== mesh.height - 1) point.y += v.y * delta;
     }
   }
 
@@ -592,28 +592,14 @@ export class CausticsEngineeringAlgorithm {
     const u2 = dp3.x - dp1.x;
     const v2 = dp3.y - dp1.y;
     
-    const a = u1 * v2 - u2 * v1;
-    const b = x1 * v1 + y2 * u1 - x2 * v1 - y1 * u2;
-    const c = x1 * y2 - x2 * y1;
-    
-    if (a !== 0) {
-      const quotient = b * b - 4 * a * c;
-      if (quotient >= 0) {
-        const d = Math.sqrt(quotient);
-        return [(-b - d) / (2 * a), (-b + d) / (2 * a)];
-      } else {
-        return [-123.0, -123.0];
-      }
-    } else {
-      return [-c / b, -c / b];
-    }
+    return triangleCollapseTimes(x1, y1, x2, y2, u1, v1, u2, v2);
   }
 
   /**
    * 生成可视化图像
    * 对应Julia中的quantifyLoss!函数
    */
-  private quantifyLoss(mesh: Mesh, D: number[][], phi: number[][]): string {
+  private quantifyLoss(D: number[][]): string {
     // 使用实际的图像尺寸
     const width = D.length;
     const height = D[0].length;
@@ -640,7 +626,7 @@ export class CausticsEngineeringAlgorithm {
         const index = (y * width + x) * 4;
         
         // 将D值归一化到0-255范围
-        const normalizedValue = (D[x][y] - minD) / (maxD - minD);
+        const normalizedValue = maxD === minD ? 0.5 : (D[x][y] - minD) / (maxD - minD);
         const colorValue = Math.floor(normalizedValue * 255);
         
         imageData.data[index] = colorValue;     // R
@@ -658,7 +644,7 @@ export class CausticsEngineeringAlgorithm {
    * 计算透镜表面高度
    * 对应Julia中的findSurface函数
    */
-  private async findSurface(mesh: Mesh, targetImage: number[][], onProgress?: (progress: number, status: string) => void): Promise<{ heights: number[][], metersPerPixel: number }> {
+  private async findSurface(mesh: Mesh, onProgress?: (progress: number, status: string) => void): Promise<{ heights: number[][], metersPerPixel: number }> {
     console.log('计算透镜表面高度...');
     
     const width = mesh.width;
@@ -668,14 +654,13 @@ export class CausticsEngineeringAlgorithm {
     const imgWidth = 0.1; // 透镜物理尺寸（米）
     const f = this.parameters?.focalLengthMeters || 3.5;        // 焦距（米），从参数配置中获取
     const H = f;
-    const metersPerPixel = imgWidth / width;
+    const metersPerPixel = imgWidth / (width - 1);
     
     console.log(metersPerPixel);
     
     // 折射率 - 从参数配置中获取
     const refractiveIndex = this.parameters?.refractiveIndex || 1.49;
     const n1 = refractiveIndex; // 透镜材料
-    const n2 = 1.0;  // 空气
     
     console.log(`使用折射率: ${n1}`);
     
@@ -751,10 +736,12 @@ export class CausticsEngineeringAlgorithm {
     console.log('开始求解透镜表面高度...');
     
     const maxIterations = 10000;
-    const tolerance = 0.00001;
+    const tolerance = this.parameters.optimization.tolerance ?? 0.00001;
     
     for (let iter = 0; iter < maxIterations; iter++) {
+      this.checkCancellation();
       const maxUpdate = this.relaxStepForHeights(heights, divergence);
+      if (!Number.isFinite(maxUpdate)) throw new Error('透镜表面求解出现无效数值');
       
       if (iter < 5) {
         console.log(maxUpdate);
@@ -829,7 +816,7 @@ export class CausticsEngineeringAlgorithm {
    * 设置网格高度
    * 对应Julia中的setHeights!函数
    */
-  private setHeights(mesh: Mesh, heights: number[][], metersPerPixel: number): void {
+  private setHeights(mesh: Mesh, heights: number[][]): void {
     const width = heights.length;
     const height = heights[0].length;
     
@@ -902,7 +889,6 @@ export class CausticsEngineeringAlgorithm {
     // 调整offset以匹配新的高度比例尺
     const offset = 10; // 减小偏移量以匹配调整后的高度比例
     
-    console.log(`透镜偏移量: ${offset}m (配置厚度: ${this.parameters.thickness}mm)`);
     console.log(`Specs: ${width}  ${height}  ${width * height * 2}  ${width * 2 + (height - 2) * 2}  ${(width - 1) * (height - 1) * 2} ${(width - 1) * (height - 1) * 4 + (width * 2 + (height - 2) * 2) * 2}`);
     
     // 构建底部和顶部表面
@@ -944,7 +930,6 @@ export class CausticsEngineeringAlgorithm {
     
     // 构建三角形（完整版本，与Julia一致）
     const triangles: Triangle[] = [];
-    const totalNodes = width * height * 2;
     const numTrianglesBottom = 2 * (width - 1) * (height - 1);
     const numTrianglesTop = numTrianglesBottom;
     const numTrianglesSides = 4 * (width - 1) + 4 * (height - 1);
@@ -1044,12 +1029,12 @@ export class CausticsEngineeringAlgorithm {
     const lensWidth = 100;  //固定尺寸100mm
     const lensHeight = 100; //固定尺寸100mm
     
-    const scaleX = lensWidth / mesh.width;
-    const scaleY = lensHeight / mesh.height;
+    const scaleX = lensWidth / (mesh.width - 1);
+    const scaleY = lensHeight / (mesh.height - 1);
     
     // 计算透镜中心偏移，使透镜中心位于原点
-    const centerOffsetX = (mesh.width * scaleX) / 2;
-    const centerOffsetY = (mesh.height * scaleY) / 2;
+    const centerOffsetX = lensWidth / 2;
+    const centerOffsetY = lensHeight / 2;
     
     const vertices: Point3D[] = mesh.nodes.map(node => ({
       x: node.x * scaleX - centerOffsetX,
@@ -1168,7 +1153,7 @@ export class CausticsEngineeringGenerator {
   private algorithm: CausticsEngineeringAlgorithm;
   private isRunning = false;
 
-  constructor(parameters: any) {
+  constructor(parameters: CausticParameters) {
     this.algorithm = new CausticsEngineeringAlgorithm(parameters);
   }
 

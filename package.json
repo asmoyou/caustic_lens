@@ -8,6 +8,7 @@
     "build": "vite build",
     "build-with-types": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "tsx --test tests/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

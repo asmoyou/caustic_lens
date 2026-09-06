@@ -1,4 +1,5 @@
-import { ImageData, ImageProcessingResult, Contour, Point2D } from '../../types';
+import type { ImageData as ProjectImage, ImageProcessingResult, Contour, Point2D } from '../../types';
+import { normalizeTarget } from '../causticsEngineering/numerics';
 
 export class ImageProcessor {
   private canvas: HTMLCanvasElement;
@@ -9,16 +10,23 @@ export class ImageProcessor {
     this.ctx = this.canvas.getContext('2d')!;
   }
 
-  async processImage(imageData: ImageData): Promise<ImageProcessingResult> {
+  async processImage(imageData: ProjectImage, resolution = 128): Promise<ImageProcessingResult> {
+    if (!Number.isInteger(resolution) || resolution < 2 || resolution > 512) {
+      throw new Error('图像分辨率必须在 2 到 512 之间');
+    }
     const img = new Image();
-    img.src = imageData.url;
     
     return new Promise((resolve, reject) => {
       img.onload = () => {
         try {
-          this.canvas.width = img.width;
-          this.canvas.height = img.height;
-          this.ctx.drawImage(img, 0, 0);
+          this.canvas.width = resolution;
+          this.canvas.height = resolution;
+          this.ctx.fillStyle = '#000';
+          this.ctx.fillRect(0, 0, resolution, resolution);
+          const scale = resolution / Math.max(img.naturalWidth, img.naturalHeight);
+          const width = img.naturalWidth * scale;
+          const height = img.naturalHeight * scale;
+          this.ctx.drawImage(img, (resolution - width) / 2, (resolution - height) / 2, width, height);
           
           const result = this.analyzeImage();
           resolve(result);
@@ -26,7 +34,8 @@ export class ImageProcessor {
           reject(error);
         }
       };
-      img.onerror = reject;
+      img.onerror = () => reject(new Error('图片无法解码，请选择有效的 PNG、JPEG 或 WebP 图片'));
+      img.src = imageData.url;
     });
   }
 
@@ -35,7 +44,7 @@ export class ImageProcessor {
     const grayscale = this.toGrayscale(imageData);
     const edges = this.detectEdges(grayscale);
     const contours = this.findContours(edges);
-    const targetShape = this.extractTargetShape(contours);
+    const targetShape = normalizeTarget(grayscale.map(row => row.map(value => value / 255)));
 
     return {
       edges,
@@ -157,84 +166,4 @@ export class ImageProcessor {
     return perimeter;
   }
 
-  private extractTargetShape(contours: Contour[]): number[][] {
-    // 使用512x512分辨率匹配Julia实现
-    const resolution = 512;
-    
-    // 直接从原始图像创建灰度强度矩阵（匹配Julia实现）
-    const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
-    const grayscale = this.toGrayscaleMatrix(imageData, resolution);
-    
-    // 应用Julia中的能量归一化
-    const normalizedImage = this.normalizeImageEnergy(grayscale, resolution);
-    
-    return normalizedImage;
-  }
-  
-  private toGrayscaleMatrix(imageData: ImageData, targetResolution: number): number[][] {
-    const { width, height, data } = imageData;
-    const matrix: number[][] = [];
-    
-    // 缩放到目标分辨率
-    const scaleX = width / targetResolution;
-    const scaleY = height / targetResolution;
-    
-    for (let y = 0; y < targetResolution; y++) {
-      matrix[y] = [];
-      for (let x = 0; x < targetResolution; x++) {
-        const srcX = Math.floor(x * scaleX);
-        const srcY = Math.floor(y * scaleY);
-        const i = (srcY * width + srcX) * 4;
-        
-        // 转换为灰度（匹配Julia的Gray转换）
-        const gray = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) / 255.0;
-        matrix[y][x] = gray;
-      }
-    }
-    
-    return matrix;
-  }
-  
-  private normalizeImageEnergy(image: number[][], resolution: number): number[][] {
-    // 计算图像总和
-    let imageSum = 0;
-    for (let y = 0; y < resolution; y++) {
-      for (let x = 0; x < resolution; x++) {
-        imageSum += image[y][x];
-      }
-    }
-    
-    // 网格总面积（匹配Julia实现）
-    const meshSum = resolution * resolution;
-    
-    // 计算增强比例（匹配Julia的boost_ratio）
-    const boostRatio = imageSum > 0 ? meshSum / imageSum : 1.0;
-    
-    // 应用增强比例
-    const normalizedImage: number[][] = [];
-    for (let y = 0; y < resolution; y++) {
-      normalizedImage[y] = [];
-      for (let x = 0; x < resolution; x++) {
-        normalizedImage[y][x] = image[y][x] * boostRatio;
-      }
-    }
-    
-    console.log(`图像归一化: 原始总和=${imageSum.toFixed(4)}, 网格总和=${meshSum}, 增强比例=${boostRatio.toFixed(4)}`);
-    
-    return normalizedImage;
-  }
-  
-  private fillContourInterior(shape: number[][], resolution: number): void {
-    // 使用扫描线算法填充轮廓内部
-    for (let y = 0; y < resolution; y++) {
-      let inside = false;
-      for (let x = 0; x < resolution; x++) {
-        if (shape[y][x] === 1.0) {
-          inside = !inside;
-        } else if (inside) {
-          shape[y][x] = 1.0;
-        }
-      }
-    }
-  }
 }
