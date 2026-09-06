@@ -314,11 +314,11 @@ export class CausticDebugger {
    * 运行完整的调试测试套件
    */
   runFullDiagnostics(parameters: CausticParameters, targetShape?: number[][]): {
-    spatialTest: any;
-    refractionTest: any;
-    intensityTest: any;
-    patternTest: any;
-    textureTest: any;
+    spatialTest: ReturnType<CausticDebugger['testSpatialRelationships']>;
+    refractionTest: ReturnType<CausticDebugger['testRefractionCalculation']>;
+    intensityTest: ReturnType<CausticDebugger['testCausticIntensityCalculation']>;
+    patternTest: ReturnType<CausticDebugger['generateTestPattern']>;
+    textureTest: ReturnType<CausticDebugger['testTextureGeneration']>;
     overallIssues: string[];
     recommendations: string[];
   } {

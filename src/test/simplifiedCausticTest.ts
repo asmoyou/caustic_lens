@@ -353,10 +353,10 @@ export class SimplifiedCausticTest {
    * 运行所有简化测试
    */
   runAllTests(): {
-    basicProjection: any;
-    textureTest: any;
-    causticShader: any;
-    heightMap: any;
+    basicProjection: ReturnType<SimplifiedCausticTest['testBasicLightProjection']>;
+    textureTest: ReturnType<SimplifiedCausticTest['testSimpleTexture']>;
+    causticShader: ReturnType<SimplifiedCausticTest['testSimpleCausticShader']>;
+    heightMap: ReturnType<SimplifiedCausticTest['testHeightMapGeneration']>;
     overallSuccess: boolean;
     summary: string;
   } {

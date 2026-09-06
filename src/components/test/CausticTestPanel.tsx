@@ -1,21 +1,13 @@
 import React, { useState, useCallback } from 'react';
-import { Card, Button, Space, Typography, Collapse, Alert, Divider, Row, Col, Statistic, Tag } from 'antd';
-import { BugOutlined, PlayCircleOutlined, CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import { Card, Button, Typography, Collapse, Alert, Divider, Row, Col, Statistic, Tag } from 'antd';
+import { PlayCircleOutlined, CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { useProjectStore } from '../../stores/projectStore';
-import { CausticDebugger, runCausticDiagnostics } from '../../test/causticDebugger';
+import { runCausticDiagnostics } from '../../test/causticDebugger';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text, Paragraph } = Typography;
 const { Panel } = Collapse;
 
-interface DiagnosticResults {
-  spatialTest: any;
-  refractionTest: any;
-  intensityTest: any;
-  patternTest: any;
-  textureTest: any;
-  overallIssues: string[];
-  recommendations: string[];
-}
+type DiagnosticResults = ReturnType<typeof runCausticDiagnostics>;
 
 export const CausticTestPanel: React.FC = () => {
   const { parameters, targetShape } = useProjectStore();
@@ -43,7 +35,7 @@ export const CausticTestPanel: React.FC = () => {
     }
   }, [parameters, targetShape]);
 
-  const renderSpatialTest = (spatialTest: any) => (
+  const renderSpatialTest = (spatialTest: DiagnosticResults['spatialTest']) => (
     <div>
       <Row gutter={16}>
         <Col span={8}>
@@ -111,13 +103,13 @@ export const CausticTestPanel: React.FC = () => {
     </div>
   );
 
-  const renderRefractionTest = (refractionTest: any) => (
+  const renderRefractionTest = (refractionTest: DiagnosticResults['refractionTest']) => (
     <div>
       <Paragraph>
         <Text strong>折射率:</Text> {parameters.refractiveIndex}
       </Paragraph>
       <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-        {refractionTest.testCases.map((testCase: any, index: number) => (
+        {refractionTest.testCases.map((testCase, index: number) => (
           <Card key={index} size="small" style={{ marginBottom: 8 }}>
             <Row gutter={8}>
               <Col span={6}>
@@ -152,10 +144,10 @@ export const CausticTestPanel: React.FC = () => {
     </div>
   );
 
-  const renderIntensityTest = (intensityTest: any) => (
+  const renderIntensityTest = (intensityTest: DiagnosticResults['intensityTest']) => (
     <div>
       <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-        {intensityTest.testResults.map((result: any, index: number) => (
+        {intensityTest.testResults.map((result, index: number) => (
           <Card key={index} size="small" style={{ marginBottom: 8 }}>
             <Row gutter={8}>
               <Col span={6}>
@@ -195,7 +187,7 @@ export const CausticTestPanel: React.FC = () => {
     </div>
   );
 
-  const renderPatternTest = (patternTest: any) => (
+  const renderPatternTest = (patternTest: DiagnosticResults['patternTest']) => (
     <div>
       <Paragraph>
         <Text strong>测试图案:</Text> {patternTest.description}
@@ -206,7 +198,7 @@ export const CausticTestPanel: React.FC = () => {
     </div>
   );
 
-  const renderTextureTest = (textureTest: any) => (
+  const renderTextureTest = (textureTest: DiagnosticResults['textureTest']) => (
     <div>
       <Row gutter={16}>
         <Col span={12}>

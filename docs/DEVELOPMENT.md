@@ -17,7 +17,7 @@
 ## 🔧 环境要求
 
 ### 基础要求
-- **Node.js**: >= 16.0.0 (推荐使用 18.x LTS)
+- **Node.js**: 22.x
 - **npm**: >= 7.0.0 (或 yarn >= 1.22.0)
 - **Git**: >= 2.20.0
 
@@ -249,22 +249,19 @@ chore: 构建过程或辅助工具的变动
 # 运行所有测试
 npm run test
 
-# 运行测试并生成覆盖率报告
-npm run test:coverage
+# 浏览器交互测试（本地使用 Google Chrome）
+npm run test:e2e
 
-# 监听模式运行测试
-npm run test:watch
+# 严格类型检查与构建
+npm run build
 ```
 
 ### 测试文件结构
 
 ```
-src/
-├── __tests__/             # 全局测试
-├── components/
-│   └── __tests__/         # 组件测试
-└── algorithms/
-    └── __tests__/         # 算法测试
+tests/
+├── *.test.ts             # 算法、状态、模型格式和报告回归测试
+└── e2e/workflow.spec.ts   # Playwright 浏览器流程及响应式检查
 ```
 
 ## 🏗️ 构建和部署

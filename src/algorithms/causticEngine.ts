@@ -1,16 +1,13 @@
-import * as THREE from 'three';
-import type { CausticParameters, LensGeometry, Point3D, ImageData, ImageProcessingResult } from '../types';
+import type { CausticParameters, LensGeometry } from '../types';
 import { CausticsEngineeringGenerator } from './causticsEngineering';
 
 /**
  * 主要的焦散引擎类，连接图像处理和透镜生成
  */
 export class CausticEngine {
-  private parameters: CausticParameters;
   private generator: CausticsEngineeringGenerator;
 
   constructor(parameters: CausticParameters) {
-    this.parameters = parameters;
     this.generator = new CausticsEngineeringGenerator(parameters);
   }
 
@@ -19,21 +16,9 @@ export class CausticEngine {
    */
   async generateLensGeometry(
     targetShape: number[][],
-    onProgress?: (progress: number, status: string) => void,
-    options?: {
-      useGPUAcceleration?: boolean;
-      photonMapSize?: number;
-    }
+    onProgress?: (progress: number, status: string) => void
   ): Promise<LensGeometry> {
-    // 将目标形状转换为ImageData格式
-    const imageData: ImageData = {
-      url: '', // 不需要URL，直接使用数据
-      name: 'target_shape',
-      data: targetShape
-    };
-
-    // 使用CausticsEngineeringGenerator生成透镜
-    return await this.generator.generateLens(imageData, onProgress);
+    return await this.generator.generateLens({ data: targetShape }, onProgress);
   }
 
   /**
@@ -54,7 +39,7 @@ export class CausticEngine {
    * 更新参数
    */
   updateParameters(parameters: CausticParameters): void {
-    this.parameters = parameters;
+    this.generator.stop();
     this.generator = new CausticsEngineeringGenerator(parameters);
   }
 }

@@ -515,10 +515,14 @@ export class ReportGenerator {
     processingTime: number
   ): Promise<ReportData> {
     validateGeometry(geometry);
-    const blob = image.file ?? await fetch(image.url).then(response => {
+    let blob: Blob;
+    if (image.file) {
+      blob = image.file;
+    } else {
+      const response = await fetch(image.url);
       if (!response.ok) throw new Error('源图像读取失败');
-      return response.blob();
-    });
+      blob = await response.blob();
+    }
     if (!/^image\/(png|jpeg|webp|gif)$/.test(blob.type)) throw new Error('报告仅支持光栅图片');
     const bytes = new Uint8Array(await blob.arrayBuffer());
     let binary = '';

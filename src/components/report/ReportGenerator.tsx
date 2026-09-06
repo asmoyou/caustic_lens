@@ -4,7 +4,7 @@ import { FileTextOutlined, DownloadOutlined } from '@ant-design/icons';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, BarElement } from 'chart.js';
-import { Line, Bar } from 'react-chartjs-2';
+import { Bar } from 'react-chartjs-2';
 import { useProjectStore } from '../../stores/projectStore';
 
 ChartJS.register(
@@ -97,7 +97,6 @@ export const ReportGenerator: React.FC = () => {
 
       const pdf = new jsPDF();
       const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
       
       setProgress(20);
 
@@ -120,10 +119,10 @@ export const ReportGenerator: React.FC = () => {
       pdf.setFontSize(12);
       const paramTexts = [
         `目标距离: ${parameters.targetDistance} mm`,
-        `透镜厚度: ${parameters.lensThickness} mm`,
+        `算法焦距: ${parameters.focalLengthMeters} m`,
         `折射率: ${parameters.refractiveIndex}`,
         `网格分辨率: ${parameters.resolution} × ${parameters.resolution}`,
-        `平滑因子: ${parameters.smoothingFactor}`
+        `迭代次数: ${parameters.optimization.iterations}`
       ];
       
       paramTexts.forEach(text => {

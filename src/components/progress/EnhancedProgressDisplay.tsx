@@ -114,7 +114,6 @@ export const EnhancedProgressDisplay: React.FC<EnhancedProgressDisplayProps> = (
     phase,
     estimatedTimeRemaining,
     avgIterationTime,
-    startTime,
     elapsedTime,
     memoryUsage,
     cpuUsage,
@@ -179,7 +178,6 @@ export const EnhancedProgressDisplay: React.FC<EnhancedProgressDisplayProps> = (
                     value={formatTime(elapsedTime)}
                     prefix={<ClockCircleOutlined style={{ color: '#52c41a' }} />}
                     valueStyle={{ fontSize: '14px', fontWeight: 600, color: '#52c41a', whiteSpace: 'nowrap' }}
-                    titleStyle={{ fontSize: '11px', color: '#666', whiteSpace: 'nowrap' }}
                   />
                 </Col>
               )}
@@ -190,7 +188,6 @@ export const EnhancedProgressDisplay: React.FC<EnhancedProgressDisplayProps> = (
                     value={formatTime(estimatedTimeRemaining)}
                     prefix={<ClockCircleOutlined style={{ color: '#1890ff' }} />}
                     valueStyle={{ fontSize: '14px', fontWeight: 600, color: '#1890ff', whiteSpace: 'nowrap' }}
-                    titleStyle={{ fontSize: '11px', color: '#666', whiteSpace: 'nowrap' }}
                   />
                 </Col>
               )}
@@ -201,7 +198,6 @@ export const EnhancedProgressDisplay: React.FC<EnhancedProgressDisplayProps> = (
                     value={formatTime(avgIterationTime)}
                     prefix={<ThunderboltOutlined style={{ color: '#fa8c16' }} />}
                     valueStyle={{ fontSize: '14px', fontWeight: 600, color: '#fa8c16', whiteSpace: 'nowrap' }}
-                    titleStyle={{ fontSize: '11px', color: '#666', whiteSpace: 'nowrap' }}
                   />
                 </Col>
               )}

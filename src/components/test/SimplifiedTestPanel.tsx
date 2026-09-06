@@ -5,14 +5,7 @@ import { runSimplifiedCausticTests } from '../../test/simplifiedCausticTest';
 
 const { Title, Text, Paragraph } = Typography;
 
-interface TestResults {
-  basicProjection: any;
-  textureTest: any;
-  causticShader: any;
-  heightMap: any;
-  overallSuccess: boolean;
-  summary: string;
-}
+type TestResults = ReturnType<typeof runSimplifiedCausticTests>;
 
 export const SimplifiedTestPanel: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
@@ -33,10 +26,10 @@ export const SimplifiedTestPanel: React.FC = () => {
     } catch (error) {
       console.error('简化测试执行失败:', error);
       setResults({
-        basicProjection: { success: false, issues: [`执行异常: ${(error as Error).message}`] },
-        textureTest: { success: false, issues: [] },
-        causticShader: { success: false, issues: [] },
-        heightMap: { success: false, issues: [] },
+        basicProjection: { success: false, imageData: '', issues: [`执行异常: ${(error as Error).message}`] },
+        textureTest: { success: false, imageData: '', issues: [] },
+        causticShader: { success: false, imageData: '', issues: [] },
+        heightMap: { success: false, imageData: '', heightData: new Float32Array(), issues: [] },
         overallSuccess: false,
         summary: `测试执行失败: ${(error as Error).message}`
       });
@@ -45,7 +38,7 @@ export const SimplifiedTestPanel: React.FC = () => {
     }
   }, []);
 
-  const renderTestResult = (testName: string, result: any, icon: React.ReactNode) => {
+  const renderTestResult = (testName: string, result: TestResults['basicProjection'], icon: React.ReactNode) => {
     if (!result) return null;
     
     return (
